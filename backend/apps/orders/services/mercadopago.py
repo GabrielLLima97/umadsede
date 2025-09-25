@@ -123,9 +123,21 @@ def processar_webhook(payload: dict):
     if pag.status == "approved" or (pag.pedido and pag.pedido.status == "pago"):
         return {"ok": True, "idempotent": True}
 
+    # Tenta detectar pagamento aprovado
     mo = _fetch_merchant_order_by_pref_or_ref(pag.preference_id, external_reference=str(pag.pedido_id))
-    if not _is_paid_merchant_order(mo):
-        # guarda o raw recebido para auditoria mesmo assim
+    paid = _is_paid_merchant_order(mo)
+    # Se não for uma merchant order (ex.: Payments API PIX), tenta via payments.get
+    if not paid:
+        try:
+            pay = sdk.payment().get(pag.preference_id)
+            if pay and pay.get("status") in (200, 201):
+                pstatus = (pay.get("response") or {}).get("status")
+                if pstatus == "approved":
+                    paid = True
+        except Exception:
+            pass
+    if not paid:
+        # guarda raw e retorna pendente
         pag.raw = {"webhook": payload, "merchant_order": mo or {}}
         pag.status_detail = (mo or {}).get("order_status") or "pending"
         pag.save(update_fields=["raw", "status_detail", "updated_at"])
@@ -190,8 +202,11 @@ def criar_pagamento_pix(pedido_id: int, payer: dict | None = None):
     Retorna o objeto de pagamento do MP.
     """
     pedido = Pedido.objects.get(pk=pedido_id)
+    valor = Decimal(pedido.valor_total or 0)
+    if valor < Decimal("1.00"):
+        valor = Decimal("1.00")
     pag_data = {
-        "transaction_amount": float(pedido.valor_total),
+        "transaction_amount": float(valor),
         "description": f"Pedido #{pedido.id}",
         "payment_method_id": "pix",
         "external_reference": str(pedido.id),

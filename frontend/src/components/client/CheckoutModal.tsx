@@ -18,6 +18,8 @@ export default function CheckoutModal({ open, onClose }: Props){
   const [pedidoId,setPedidoId]=useState<number|undefined>();
   const [payUrl,setPayUrl]=useState<string|undefined>();
   const [prefId,setPrefId]=useState<string|undefined>();
+  const [pixQR,setPixQR]=useState<string|undefined>();
+  const [pixCode,setPixCode]=useState<string|undefined>();
   const [loading,setLoading]=useState(false);
   const addOrderRef = useOrders(s=>s.addOrder);
 
@@ -45,6 +47,17 @@ export default function CheckoutModal({ open, onClose }: Props){
         setPayUrl(pref.data?.init_point);
         setPrefId(pref.data?.preference_id);
       } catch {}
+      // Cria pagamento PIX direto e exibe QR/copia e cola
+      try {
+        const payer = { email: `${nome.replace(/\s+/g,'').toLowerCase()}@exemplo.com` };
+        const pix = await api.post('/payments/pix', { pedido_id: p.data.id, payer });
+        const t = pix.data?.point_of_interaction?.transaction_data || {};
+        const base64 = t.qr_code_base64; const code = t.qr_code;
+        if (base64) setPixQR(`data:image/png;base64,${base64}`);
+        if (code) setPixCode(code);
+      } catch (e:any) {
+        console.error('Erro ao criar PIX', e?.response?.data || e);
+      }
       setStep(2);
     } finally{ setLoading(false); }
   };
@@ -59,34 +72,17 @@ export default function CheckoutModal({ open, onClose }: Props){
     }
   };
 
-  // Mercado Pago Wallet Brick (Pix apenas, via preferência) dentro do modal
-  declare const MercadoPago: any;
+  // Polling simples para confirmação automática (enquanto no passo 2)
   useEffect(() => {
-    if (step !== 2 || !open || !prefId) return;
-    const pk = (import.meta as any).env?.VITE_MP_PUBLIC_KEY;
-    if (!pk || typeof (window as any).MercadoPago === 'undefined') return;
-    try {
-      const mp = new MercadoPago(pk, { locale: 'pt-BR' });
-      const bricks = mp.bricks();
-      const mount = document.getElementById('mp-wallet');
-      if (mount) mount.innerHTML = '';
-      bricks.create('wallet', 'mp-wallet', {
-        initialization: { preferenceId: prefId },
-        customization: {
-          texts: { valueProp: 'security_details' },
-          visual: { hideExternalReference: true },
-        },
-        callbacks: {
-          onReady: () => {},
-          onSubmit: () => {},
-          onError: (e: any) => {
-            console.error('Wallet Brick error', e);
-            alert('Não foi possível carregar o pagamento. Tente novamente.');
-          },
-        },
-      });
-    } catch {}
-  }, [step, open, prefId]);
+    if (step !== 2 || !pedidoId) return;
+    const id = setInterval(async () => {
+      try {
+        const r = await api.get(`/orders/${pedidoId}/`);
+        if (r.data?.status === 'pago') { setStep(3); clear(); }
+      } catch {}
+    }, 4000);
+    return () => clearInterval(id);
+  }, [step, pedidoId, clear]);
 
   return (
     <Transition appear show={open} as={Fragment}>
@@ -122,8 +118,24 @@ export default function CheckoutModal({ open, onClose }: Props){
                 {step===2 && (
                   <div className="mt-3 flex flex-col gap-3">
                     <div className="text-sm text-slate-600">Pague via Pix dentro do site. O pedido é confirmado automaticamente quando o pagamento for aprovado.</div>
-                    <div id="mp-wallet" className="w-full"></div>
-                    {!prefId && payUrl && (
+                    {pixQR && (
+                      <div className="flex flex-col items-center gap-2">
+                        <img src={pixQR} alt="QR Pix" className="w-56 h-56 rounded-lg border" />
+                        {pixCode && (
+                          <div className="w-full">
+                            <div className="text-xs text-slate-600 mb-1">Copie o código Pix (copia e cola):</div>
+                            <div className="flex gap-2">
+                              <input className="input" value={pixCode} readOnly />
+                              <button className="btn" onClick={()=>{ navigator.clipboard.writeText(pixCode!); }} aria-label="Copiar">Copiar</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {!pixQR && prefId && (
+                      <div className="text-sm">Carregando Pix...</div>
+                    )}
+                    {!pixQR && !prefId && payUrl && (
                       <a className="btn btn-primary" href={payUrl} target="_self" rel="noreferrer" aria-label="Abrir pagamento">Abrir pagamento (fallback)</a>
                     )}
                   </div>
