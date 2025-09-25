@@ -39,13 +39,12 @@ export default function CheckoutModal({ open, onClose }: Props){
       try{
         addOrderRef({ id: p.data.id, createdAt: new Date().toISOString(), total, name: nome });
       } catch { /* noop */ }
-      const pref = await api.post(`/payments/preference?pedido_id=${p.data.id}`, { pedido_id: p.data.id }).catch(async (e)=>{
-        const detail = e?.response?.data?.detail || "Falha ao criar preferência";
-        alert(detail);
-        throw e;
-      });
-      setPayUrl(pref.data?.init_point);
-      setPrefId(pref.data?.preference_id);
+      // Mantemos preferência para fallback, porém usaremos Payment Brick (Pix)
+      try{
+        const pref = await api.post(`/payments/preference?pedido_id=${p.data.id}`, { pedido_id: p.data.id });
+        setPayUrl(pref.data?.init_point);
+        setPrefId(pref.data?.preference_id);
+      } catch {}
       setStep(2);
     } finally{ setLoading(false); }
   };
@@ -60,29 +59,41 @@ export default function CheckoutModal({ open, onClose }: Props){
     }
   };
 
-  // Mercado Pago Wallet Brick dentro do modal (mantém no site; evita abrir app)
+  // Mercado Pago Payment Brick (Pix) dentro do modal
   declare const MercadoPago: any;
   useEffect(() => {
-    if (step !== 2 || !prefId || !open) return;
+    if (step !== 2 || !open) return;
     const pk = (import.meta as any).env?.VITE_MP_PUBLIC_KEY;
     if (!pk || typeof (window as any).MercadoPago === 'undefined') return;
     try {
       const mp = new MercadoPago(pk, { locale: 'pt-BR' });
       const bricks = mp.bricks();
-      // Limpa render anterior se houver
-      const mountPoint = document.getElementById('mp-wallet');
-      if (mountPoint) mountPoint.innerHTML = '';
-      bricks.create('wallet', 'mp-wallet', {
-        initialization: { preferenceId: prefId },
-        customization: { texts: { valueProp: 'security_details' } },
+      const mount = document.getElementById('mp-payment');
+      if (mount) mount.innerHTML = '';
+      bricks.create('payment', 'mp-payment', {
+        initialization: { amount: Number(total) },
+        customization: {
+          paymentMethods: {
+            creditCard: 'disabled',
+            debitCard: 'disabled',
+            ticket: 'disabled',
+            bankTransfer: 'enabled', // exibe Pix no BR
+          },
+        },
         callbacks: {
           onReady: () => {},
-          onSubmit: () => {},
+          onSubmit: async ({ formData }: any) => {
+            // envia para backend criar pagamento PIX, retorna paymentId para o Brick
+            const payer = { email: `${nome.replace(/\s+/g,'').toLowerCase()}@exemplo.com` };
+            const resp = await api.post('/payments/pix', { pedido_id: pedidoId, payer, form: formData });
+            return { paymentId: resp.data?.id };
+          },
+          onPaymentApproved: () => { setStep(3); clear(); },
           onError: () => {},
         },
       });
     } catch {}
-  }, [step, prefId, open]);
+  }, [step, open, total, nome, pedidoId]);
 
   return (
     <Transition appear show={open} as={Fragment}>
@@ -117,14 +128,11 @@ export default function CheckoutModal({ open, onClose }: Props){
                 )}
                 {step===2 && (
                   <div className="mt-3 flex flex-col gap-3">
-                    <div className="text-sm text-slate-600">Finalize o pagamento abaixo sem sair do site. Em seguida, clique em "Já paguei" para confirmar.</div>
-                    <div id="mp-wallet" className="w-full"></div>
+                    <div className="text-sm text-slate-600">Pague via Pix dentro do site. O pedido é confirmado automaticamente quando o pagamento for aprovado.</div>
+                    <div id="mp-payment" className="w-full"></div>
                     {!prefId && payUrl && (
-                      <a className="btn btn-primary" href={payUrl} target="_self" rel="noreferrer" aria-label="Abrir pagamento">Abrir pagamento</a>
+                      <a className="btn btn-primary" href={payUrl} target="_self" rel="noreferrer" aria-label="Abrir pagamento">Abrir pagamento (fallback)</a>
                     )}
-                    <div>
-                      <button className="btn btn-ghost" onClick={confirmPaid} aria-label="Já paguei">Já paguei</button>
-                    </div>
                   </div>
                 )}
                 {step===3 && (

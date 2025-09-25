@@ -174,3 +174,35 @@ def processar_webhook(payload: dict):
         pass
 
     return {"ok": True, "paid": True}
+
+
+def criar_pagamento_pix(pedido_id: int, payer: dict | None = None):
+    """Cria um pagamento PIX (Payments API) para o pedido informado.
+    Retorna o objeto de pagamento do MP.
+    """
+    pedido = Pedido.objects.get(pk=pedido_id)
+    pag_data = {
+        "transaction_amount": float(pedido.valor_total),
+        "description": f"Pedido #{pedido.id}",
+        "payment_method_id": "pix",
+        "external_reference": str(pedido.id),
+        "notification_url": f"{settings.BACKEND_URL}/api/payments/webhook",
+        "payer": payer or {"email": f"cliente{pedido.id}@example.com"},
+    }
+    resp = sdk.payment().create(pag_data)
+    if resp.get("status") not in (200, 201):
+        raise RuntimeError(resp)
+    data = resp["response"]
+    # mantém referência no pedido
+    Pagamento.objects.update_or_create(
+        pedido=pedido,
+        defaults={
+            "preference_id": data.get("id"),
+            "status": data.get("status") or "pending",
+            "init_point": data.get("point_of_interaction", {})
+                           .get("transaction_data", {})
+                           .get("ticket_url", ""),
+            "raw": data,
+        },
+    )
+    return data

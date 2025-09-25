@@ -7,7 +7,7 @@ from decimal import Decimal
 from django.db.models import Q
 from .models import Item, Pedido
 from .serializers import ItemSerializer, PedidoSerializer
-from .services.mercadopago import criar_preferencia, processar_webhook
+from .services.mercadopago import criar_preferencia, processar_webhook, criar_pagamento_pix
 from .models import Pedido
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -206,6 +206,21 @@ def sync_payment(request):
         "external_reference": str(pedido_id),
     })
     return Response(result)
+
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+def create_pix_payment(request):
+    """Cria um pagamento PIX (Payments API) e retorna os dados para exibição (QR Code/URL)."""
+    pedido_id = request.data.get("pedido_id") or request.query_params.get("pedido_id")
+    if not pedido_id:
+        return Response({"detail": "pedido_id obrigatório"}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        pedido_id = int(pedido_id)
+    except Exception:
+        return Response({"detail": "pedido_id inválido"}, status=status.HTTP_400_BAD_REQUEST)
+    payer = request.data.get("payer") or {}
+    data = criar_pagamento_pix(pedido_id, payer)
+    return Response(data)
 
 @api_view(["GET"])
 @permission_classes([permissions.AllowAny])
