@@ -92,30 +92,33 @@ def _fetch_merchant_order_by_pref_or_ref(preference_id: str, external_reference:
     return None
 
 def processar_webhook(payload: dict):
-    """Processa webhook do MP de forma idempotente e segura."""
-    # Extrai preference/external_reference de diferentes formatos de webhook
-    pref = (
-        (payload.get("data") or {}).get("id")
-        or payload.get("id")
-        or payload.get("preference_id")
-    )
-    external_reference = (
-        (payload.get("data") or {}).get("external_reference")
-        or payload.get("external_reference")
-    )
-    if not pref and not external_reference:
-        return {"ok": False, "reason": "no_reference"}
+    """Processa webhook do Mercado Pago com lógica segura.
+    - Para PIX (Payments API): só aprova quando o payment.status == 'approved'.
+    - Para preferências/merchant orders: mantém verificação via merchant_order.
+    """
+    data = payload.get("data") or {}
+    topic = (payload.get("type") or payload.get("topic") or "").lower()
+    payment_id = None
+    external_reference = payload.get("external_reference") or data.get("external_reference")
 
+    # Detecta payment_id do payload quando o tópico for pagamento
+    if topic.startswith("payment") or data.get("id"):
+        try:
+            payment_id = str(data.get("id") or payload.get("id"))
+        except Exception:
+            payment_id = None
+
+    # Resolve Pagamento/Pedido
     pag = None
-    if pref:
-        pag = Pagamento.objects.filter(preference_id=pref).select_related("pedido").first()
-    if not pag and external_reference:
+    if external_reference:
         try:
             pedido = Pedido.objects.filter(pk=int(external_reference)).first()
             if pedido:
                 pag = Pagamento.objects.filter(pedido=pedido).select_related("pedido").first()
         except Exception:
             pass
+    if not pag and payment_id:
+        pag = Pagamento.objects.filter(preference_id=payment_id).select_related("pedido").first()
     if not pag:
         return {"ok": False, "reason": "payment_not_found"}
 
@@ -123,23 +126,33 @@ def processar_webhook(payload: dict):
     if pag.status == "approved" or (pag.pedido and pag.pedido.status == "pago"):
         return {"ok": True, "idempotent": True}
 
-    # Tenta detectar pagamento aprovado
-    mo = _fetch_merchant_order_by_pref_or_ref(pag.preference_id, external_reference=str(pag.pedido_id))
-    paid = _is_paid_merchant_order(mo)
-    # Se não for uma merchant order (ex.: Payments API PIX), tenta via payments.get
-    if not paid:
+    paid = False
+
+    # Se veio um payment_id, confira explicitamente o pagamento
+    if payment_id:
         try:
-            pay = sdk.payment().get(pag.preference_id)
-            if pay and pay.get("status") in (200, 201):
-                pstatus = (pay.get("response") or {}).get("status")
-                if pstatus == "approved":
+            res = sdk.payment().get(payment_id)
+            if res and res.get("status") in (200, 201):
+                presp = res.get("response") or {}
+                if presp.get("status") == "approved":
                     paid = True
+                    pag.raw = {"webhook": payload, "payment": presp}
+                    pag.status_detail = "approved"
         except Exception:
             pass
+
+    # Caso contrário, tenta pelo merchant_order (preferências antigas)
+    if not paid and pag.preference_id:
+        mo = _fetch_merchant_order_by_pref_or_ref(pag.preference_id, external_reference=str(pag.pedido_id))
+        if _is_paid_merchant_order(mo):
+            paid = True
+            pag.raw = {"webhook": payload, "merchant_order": mo}
+            pag.status_detail = "approved"
+
     if not paid:
-        # guarda raw e retorna pendente
-        pag.raw = {"webhook": payload, "merchant_order": mo or {}}
-        pag.status_detail = (mo or {}).get("order_status") or "pending"
+        pag.raw = pag.raw or {"webhook": payload}
+        if not getattr(pag, "status_detail", None):
+            pag.status_detail = "pending"
         pag.save(update_fields=["raw", "status_detail", "updated_at"])
         return {"ok": True, "paid": False}
 
