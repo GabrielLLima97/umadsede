@@ -1,0 +1,63 @@
+version: "3.9"
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: umadsede_db_local
+    restart: always
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    command: --default-authentication-plugin=mysql_native_password
+    ports:
+      - "3307:3306"   # mapeia 3307 no host -> 3306 no container
+    volumes:
+      - db_data_local:/var/lib/mysql
+
+  backend:
+    image: python:3.11-slim
+    container_name: umadsede_backend_local
+    working_dir: /app
+    restart: always
+    env_file: .env
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - db
+      - redis
+    ports:
+      - "8000:8000"
+    # instala dependências de SO necessárias para compilar mysqlclient
+    command: >
+      bash -lc "
+        apt-get update &&
+        apt-get install -y --no-install-recommends build-essential default-libmysqlclient-dev pkg-config &&
+        pip install --upgrade pip &&
+        pip install -r requirements.txt &&
+        python manage.py migrate &&
+        daphne -b 0.0.0.0 -p 8000 core.asgi:application
+      "
+
+  frontend:
+    image: node:20-alpine
+    container_name: umadsede_frontend_local
+    working_dir: /app
+    restart: always
+    volumes:
+      - ./frontend:/app
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+    # usa npm install em vez de npm ci porque não há package-lock.json
+    command: sh -c "npm install && npm run dev -- --host"
+
+  redis:
+    image: redis:7-alpine
+    container_name: umadsede_redis_local
+    restart: always
+
+volumes:
+  db_data_local:
