@@ -5,7 +5,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret")
 DEBUG = os.getenv("DJANGO_DEBUG", "False") == "True"
-ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",")
+
+# Hosts permitidos: suporta lista separada por vírgula e variáveis extras
+raw_hosts = (os.getenv("DJANGO_ALLOWED_HOSTS", "") or "").strip()
+extra_hosts = (os.getenv("DJANGO_ALLOWED_HOSTS_EXTRA", "") or "").strip()
+def _split_hosts(s: str):
+    return [h.strip() for h in s.split(",") if h.strip()]
+hosts = _split_hosts(raw_hosts) + _split_hosts(extra_hosts)
+ALLOWED_HOSTS = hosts if hosts else ["*"]
 
 INSTALLED_APPS = [
     "django.contrib.admin",

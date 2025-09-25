@@ -6,7 +6,8 @@ class Item(models.Model):
     descricao = models.TextField(blank=True)
     preco = models.DecimalField(max_digits=9, decimal_places=2)
     categoria = models.CharField(max_length=120, blank=True)
-    imagem_url = models.URLField(blank=True, max_length=1024)
+    # Aceita URL ou base64/paths longos
+    imagem_url = models.TextField(blank=True)
     ativo = models.BooleanField(default=True)
     estoque_inicial = models.IntegerField(default=0)
     vendidos = models.IntegerField(default=0)
