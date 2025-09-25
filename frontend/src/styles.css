@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.btn { @apply rounded-xl font-bold border px-3 py-2; }
+.btn-primary { @apply bg-brand-primary text-white border-brand-primary hover:bg-orange-700; }
+.btn-ghost { @apply bg-brand-cream border-slate-200; }
+.card { @apply rounded-2xl border border-slate-200 bg-white shadow p-4; }
+.input { @apply mt-1 w-full rounded-xl border border-slate-200 px-3 py-2; }
+
+/* Utilidades de cores da identidade */
+.bg-cream { @apply bg-brand-cream; }
+.text-brand { @apply text-brand-primary; }
