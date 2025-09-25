@@ -19,8 +19,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY entrypoint.sh .
-RUN chmod +x /app/entrypoint.sh
-
 COPY . .
+# garantir permissão de execução mesmo após copiar todo o contexto
+RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 8000
