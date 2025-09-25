@@ -1,27 +1,27 @@
-  name: Deploy to EC2
-  on:
+name: Deploy to EC2
+on:
   push:
-      branches: [ main ]
+    branches: [ "main" ]
   workflow_dispatch:
-  
-  jobs:
+
+jobs:
   deploy:
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v4
-  
-        - name: Deploy over SSH
-          uses: appleboy/ssh-action@v1.0.3
-          with:
-            host: ${{ secrets.EC2_HOST }}
-            username: ${{ secrets.EC2_USER }}
-            key: ${{ secrets.EC2_KEY }}
-            script: |
-              set -e
-              if [ ! -d "${{ secrets.REPO_PATH }}/.git" ]; then
-                git clone git@github.com:GabrielLLima97/umadsede.git "${{ secrets.REPO_PATH }}"
-              fi
-              cd "${{ secrets.REPO_PATH }}"
-              git pull
-              docker compose up -d --build
-              docker compose exec -T backend python manage.py migrate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            set -e
+            if [ ! -d "${{ secrets.REPO_PATH }}/.git" ]; then
+              git clone git@github.com:GabrielLLima97/umadsede.git "${{ secrets.REPO_PATH }}"
+            fi
+            cd "${{ secrets.REPO_PATH }}"
+            git pull
+            docker compose up -d --build
+            docker compose exec -T backend python manage.py migrate
