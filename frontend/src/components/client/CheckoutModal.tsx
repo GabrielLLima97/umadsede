@@ -1,5 +1,6 @@
 import { Dialog, Transition } from "@headlessui/react";
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { maskWhatsapp, brl } from "../../utils/format";
 import { useCart, useCartTotals } from "../../store/cart";
 import { useOrders } from "../../store/orders";
@@ -22,6 +23,8 @@ export default function CheckoutModal({ open, onClose }: Props){
   const [pixCode,setPixCode]=useState<string|undefined>();
   const [loading,setLoading]=useState(false);
   const addOrderRef = useOrders(s=>s.addOrder);
+  const [copied,setCopied] = useState(false);
+  const [orderInfo,setOrderInfo] = useState<{ id?: number; nome?: string; total?: number }>({});
 
   const valid = nome.trim().length>1 && waid.replace(/\D/g, "").length>=10;
 
@@ -37,6 +40,7 @@ export default function CheckoutModal({ open, onClose }: Props){
       };
       const p = await api.post("/orders/", payload);
       setPedidoId(p.data.id);
+      setOrderInfo({ id: p.data.id, nome, total });
       // Guarda referência do pedido para o histórico local
       try{
         addOrderRef({ id: p.data.id, createdAt: new Date().toISOString(), total, name: nome });
@@ -126,7 +130,13 @@ export default function CheckoutModal({ open, onClose }: Props){
                             <div className="text-xs text-slate-600 mb-1">Copie o código Pix (copia e cola):</div>
                             <div className="flex gap-2">
                               <input className="input" value={pixCode} readOnly />
-                              <button className="btn" onClick={()=>{ navigator.clipboard.writeText(pixCode!); }} aria-label="Copiar">Copiar</button>
+                              <button
+                                className={`btn ${copied? 'btn-primary' : ''}`}
+                                onClick={()=>{ navigator.clipboard.writeText(pixCode!); setCopied(true); setTimeout(()=>setCopied(false), 1500); }}
+                                aria-label="Copiar"
+                              >
+                                {copied? 'Copiado!' : 'Copiar'}
+                              </button>
                             </div>
                           </div>
                         )}
@@ -141,9 +151,21 @@ export default function CheckoutModal({ open, onClose }: Props){
                   </div>
                 )}
                 {step===3 && (
-                  <div className="mt-3">
+                  <div className="mt-3 flex flex-col gap-3">
                     <div className="text-lg font-black">Pagamento confirmado!</div>
                     <div className="text-slate-600">Seu pedido foi recebido e está sendo preparado.</div>
+                    <div className="rounded-xl border border-slate-200 p-3 bg-brand-cream/40">
+                      <div className="font-bold">Senha do pedido</div>
+                      <div className="text-3xl font-black">#{orderInfo.id}</div>
+                      <div className="text-sm text-slate-700 mt-2">Cliente: <span className="font-bold">{orderInfo.nome}</span></div>
+                      <div className="text-sm text-slate-700">Total: <span className="font-bold">{brl.format(orderInfo.total||0)}</span></div>
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      {orderInfo.id && (
+                        <Link to={`/status/${orderInfo.id}`} className="btn btn-primary">Ver status</Link>
+                      )}
+                      <button className="btn btn-ghost" onClick={onClose}>Fechar</button>
+                    </div>
                   </div>
                 )}
               </Dialog.Panel>
