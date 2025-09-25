@@ -2,6 +2,7 @@ import { Dialog, Transition } from "@headlessui/react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { maskWhatsapp, brl } from "../../utils/format";
+import { useToast } from "../../store/toast";
 import { useCart, useCartTotals } from "../../store/cart";
 import { useOrders } from "../../store/orders";
 import { api } from "../../api";
@@ -23,6 +24,8 @@ export default function CheckoutModal({ open, onClose }: Props){
   const [pixCode,setPixCode]=useState<string|undefined>();
   const [loading,setLoading]=useState(false);
   const addOrderRef = useOrders(s=>s.addOrder);
+  const pushToast = useToast(s=>s.push);
+  const [verifying,setVerifying] = useState(false);
   const [copied,setCopied] = useState(false);
   const [orderInfo,setOrderInfo] = useState<{ id?: number; nome?: string; total?: number }>({});
 
@@ -68,15 +71,42 @@ export default function CheckoutModal({ open, onClose }: Props){
 
   const confirmPaid = async ()=>{
     if(!pedidoId) return;
-    await api.post(`/payments/sync`, { pedido_id: pedidoId });
-    const r = await api.get(`/orders/${pedidoId}/`);
-    if(r.data.status === "pago"){
-      setStep(3);
-      clear();
-    }
+    try{
+      setVerifying(true);
+      await api.post(`/payments/sync`, { pedido_id: pedidoId }).catch(()=>{});
+      const r = await api.get(`/orders/${pedidoId}/`);
+      if(r.data.status === "pago"){
+        setStep(3);
+        clear();
+      } else {
+        pushToast({ type:'info', message:'Pagamento ainda não confirmado. Tente novamente em instantes.' });
+      }
+    } catch(e:any){
+      pushToast({ type:'error', message:'Não foi possível verificar agora.' });
+    } finally{ setVerifying(false); }
   };
 
-  // Removido polling automático para evitar qualquer confirmação antecipada.
+  // Polling seguro: apenas lê status; backend só aprova com webhook/payment approved
+  useEffect(()=>{
+    if(step!==2 || !pedidoId) return;
+    let mounted = true; let tries = 0;
+    const tick = async ()=>{
+      if(!mounted) return;
+      try{
+        const r = await api.get(`/orders/${pedidoId}/`);
+        if(r.data?.status==='pago'){
+          setStep(3); clear(); return;
+        }
+        if(++tries < 45) setTimeout(tick, 4000); // ~3min
+      } catch{}
+    };
+    // também verifica ao voltar o foco/visibilidade
+    const onVis = ()=>{ if(document.visibilityState==='visible') confirmPaid(); };
+    window.addEventListener('visibilitychange', onVis);
+    window.addEventListener('focus', onVis);
+    setTimeout(tick, 4000);
+    return ()=>{ mounted=false; window.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', onVis); };
+  },[step,pedidoId,clear]);
 
   return (
     <Transition appear show={open} as={Fragment}>
