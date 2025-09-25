@@ -76,17 +76,7 @@ export default function CheckoutModal({ open, onClose }: Props){
     }
   };
 
-  // Polling simples para confirmação automática (enquanto no passo 2)
-  useEffect(() => {
-    if (step !== 2 || !pedidoId) return;
-    const id = setInterval(async () => {
-      try {
-        const r = await api.get(`/orders/${pedidoId}/`);
-        if (r.data?.status === 'pago') { setStep(3); clear(); }
-      } catch {}
-    }, 4000);
-    return () => clearInterval(id);
-  }, [step, pedidoId, clear]);
+  // Removido polling automático para evitar qualquer confirmação antecipada.
 
   return (
     <Transition appear show={open} as={Fragment}>
@@ -115,7 +105,7 @@ export default function CheckoutModal({ open, onClose }: Props){
                     </div>
                     <div className="flex items-center justify-between mt-2">
                       <div className="font-black">Total: {brl.format(total)}</div>
-                      <button className="btn btn-primary" disabled={!valid || loading} onClick={startPayment} aria-label="Continuar para pagamento">Continuar</button>
+                      <button type="button" className="btn btn-primary" disabled={!valid || loading} onClick={startPayment} aria-label="Continuar para pagamento">Continuar</button>
                     </div>
                   </div>
                 )}
@@ -131,6 +121,7 @@ export default function CheckoutModal({ open, onClose }: Props){
                             <div className="flex gap-2">
                               <input className="input" value={pixCode} readOnly />
                               <button
+                                type="button"
                                 className={`btn ${copied? 'btn-primary' : ''}`}
                                 onClick={()=>{ navigator.clipboard.writeText(pixCode!); setCopied(true); setTimeout(()=>setCopied(false), 1500); }}
                                 aria-label="Copiar"
@@ -145,8 +136,11 @@ export default function CheckoutModal({ open, onClose }: Props){
                     {!pixQR && prefId && (
                       <div className="text-sm">Carregando Pix...</div>
                     )}
-                    {!pixQR && !prefId && payUrl && (
-                      <a className="btn btn-primary" href={payUrl} target="_self" rel="noreferrer" aria-label="Abrir pagamento">Abrir pagamento (fallback)</a>
+                    {!pixQR && (
+                      <div className="flex items-center justify-end gap-2">
+                        <button type="button" className="btn" onClick={confirmPaid} aria-label="Verificar pagamento">Verificar pagamento</button>
+                        {/* Fallback desabilitado para evitar redirecionamentos indesejados */}
+                      </div>
                     )}
                   </div>
                 )}
@@ -164,7 +158,7 @@ export default function CheckoutModal({ open, onClose }: Props){
                       {orderInfo.id && (
                         <Link to={`/status/${orderInfo.id}`} className="btn btn-primary">Ver status</Link>
                       )}
-                      <button className="btn btn-ghost" onClick={onClose}>Fechar</button>
+                      <button type="button" className="btn btn-ghost" onClick={onClose}>Fechar</button>
                     </div>
                   </div>
                 )}
