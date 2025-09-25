@@ -1,5 +1,5 @@
 import { Dialog, Transition } from "@headlessui/react";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { maskWhatsapp, brl } from "../../utils/format";
 import { useCart, useCartTotals } from "../../store/cart";
 import { useOrders } from "../../store/orders";
@@ -17,6 +17,7 @@ export default function CheckoutModal({ open, onClose }: Props){
   const [obs,setObs]=useState("");
   const [pedidoId,setPedidoId]=useState<number|undefined>();
   const [payUrl,setPayUrl]=useState<string|undefined>();
+  const [prefId,setPrefId]=useState<string|undefined>();
   const [loading,setLoading]=useState(false);
   const addOrderRef = useOrders(s=>s.addOrder);
 
@@ -44,6 +45,7 @@ export default function CheckoutModal({ open, onClose }: Props){
         throw e;
       });
       setPayUrl(pref.data?.init_point);
+      setPrefId(pref.data?.preference_id);
       setStep(2);
     } finally{ setLoading(false); }
   };
@@ -57,6 +59,30 @@ export default function CheckoutModal({ open, onClose }: Props){
       clear();
     }
   };
+
+  // Mercado Pago Wallet Brick dentro do modal (mantém no site; evita abrir app)
+  declare const MercadoPago: any;
+  useEffect(() => {
+    if (step !== 2 || !prefId || !open) return;
+    const pk = (import.meta as any).env?.VITE_MP_PUBLIC_KEY;
+    if (!pk || typeof (window as any).MercadoPago === 'undefined') return;
+    try {
+      const mp = new MercadoPago(pk, { locale: 'pt-BR' });
+      const bricks = mp.bricks();
+      // Limpa render anterior se houver
+      const mountPoint = document.getElementById('mp-wallet');
+      if (mountPoint) mountPoint.innerHTML = '';
+      bricks.create('wallet', 'mp-wallet', {
+        initialization: { preferenceId: prefId },
+        customization: { texts: { valueProp: 'security_details' } },
+        callbacks: {
+          onReady: () => {},
+          onSubmit: () => {},
+          onError: () => {},
+        },
+      });
+    } catch {}
+  }, [step, prefId, open]);
 
   return (
     <Transition appear show={open} as={Fragment}>
@@ -91,9 +117,12 @@ export default function CheckoutModal({ open, onClose }: Props){
                 )}
                 {step===2 && (
                   <div className="mt-3 flex flex-col gap-3">
-                    <div className="text-sm text-slate-600">Abrir o pagamento em nova aba e concluir. Em seguida, clique em "Já paguei" para confirmar.</div>
-                    <div className="flex items-center gap-2">
-                      <a className="btn btn-primary" href={payUrl} target="_blank" rel="noreferrer" aria-label="Abrir pagamento">Abrir pagamento</a>
+                    <div className="text-sm text-slate-600">Finalize o pagamento abaixo sem sair do site. Em seguida, clique em "Já paguei" para confirmar.</div>
+                    <div id="mp-wallet" className="w-full"></div>
+                    {!prefId && payUrl && (
+                      <a className="btn btn-primary" href={payUrl} target="_self" rel="noreferrer" aria-label="Abrir pagamento">Abrir pagamento</a>
+                    )}
+                    <div>
                       <button className="btn btn-ghost" onClick={confirmPaid} aria-label="Já paguei">Já paguei</button>
                     </div>
                   </div>

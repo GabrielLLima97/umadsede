@@ -1,0 +1,11 @@
+{
+  # opcional: email para Let's Encrypt
+  # email gabriel@example.com
+}
+
+{$SITE_DOMAIN} {
+  encode gzip zstd
+  # Redireciona tudo para o frontend Nginx
+  reverse_proxy frontend:80
+}
+
