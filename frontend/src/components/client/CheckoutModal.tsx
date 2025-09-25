@@ -59,45 +59,34 @@ export default function CheckoutModal({ open, onClose }: Props){
     }
   };
 
-  // Mercado Pago Payment Brick (Pix) dentro do modal
+  // Mercado Pago Wallet Brick (Pix apenas, via preferência) dentro do modal
   declare const MercadoPago: any;
   useEffect(() => {
-    if (step !== 2 || !open) return;
+    if (step !== 2 || !open || !prefId) return;
     const pk = (import.meta as any).env?.VITE_MP_PUBLIC_KEY;
     if (!pk || typeof (window as any).MercadoPago === 'undefined') return;
     try {
       const mp = new MercadoPago(pk, { locale: 'pt-BR' });
       const bricks = mp.bricks();
-      const mount = document.getElementById('mp-payment');
+      const mount = document.getElementById('mp-wallet');
       if (mount) mount.innerHTML = '';
-      const amount = Math.max(1, Number(total) || 0); // MP pode rejeitar valores muito baixos (ex.: < 1)
-      bricks.create('payment', 'mp-payment', {
-        initialization: { amount },
+      bricks.create('wallet', 'mp-wallet', {
+        initialization: { preferenceId: prefId },
         customization: {
-          paymentMethods: {
-            creditCard: 'disabled',
-            debitCard: 'disabled',
-            ticket: 'disabled',
-            bankTransfer: { types: ['pix'] }, // foca apenas em Pix
-          },
+          texts: { valueProp: 'security_details' },
+          visual: { hideExternalReference: true },
         },
         callbacks: {
           onReady: () => {},
-          onSubmit: async ({ formData }: any) => {
-            // envia para backend criar pagamento PIX, retorna paymentId para o Brick
-            const payer = { email: `${nome.replace(/\s+/g,'').toLowerCase()}@exemplo.com` };
-            const resp = await api.post('/payments/pix', { pedido_id: pedidoId, payer, form: formData });
-            return { paymentId: resp.data?.id };
-          },
-          onPaymentApproved: () => { setStep(3); clear(); },
-          onError: (error: any) => {
-            console.error('MP Brick error', error);
-            alert('Não foi possível inicializar o pagamento Pix. Verifique o valor mínimo (R$ 1,00) e as credenciais.');
+          onSubmit: () => {},
+          onError: (e: any) => {
+            console.error('Wallet Brick error', e);
+            alert('Não foi possível carregar o pagamento. Tente novamente.');
           },
         },
       });
     } catch {}
-  }, [step, open, total, nome, pedidoId]);
+  }, [step, open, prefId]);
 
   return (
     <Transition appear show={open} as={Fragment}>
@@ -133,7 +122,7 @@ export default function CheckoutModal({ open, onClose }: Props){
                 {step===2 && (
                   <div className="mt-3 flex flex-col gap-3">
                     <div className="text-sm text-slate-600">Pague via Pix dentro do site. O pedido é confirmado automaticamente quando o pagamento for aprovado.</div>
-                    <div id="mp-payment" className="w-full"></div>
+                    <div id="mp-wallet" className="w-full"></div>
                     {!prefId && payUrl && (
                       <a className="btn btn-primary" href={payUrl} target="_self" rel="noreferrer" aria-label="Abrir pagamento">Abrir pagamento (fallback)</a>
                     )}

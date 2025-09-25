@@ -29,10 +29,19 @@ def criar_preferencia(pedido_id: int):
         "back_urls": back,
         # auto_return removido para evitar erro invalid_auto_return
         "statement_descriptor": "UMADSEDE",
-        # sem restringir Pix; apenas removemos ATM e cripto.
+        # Restrito a PIX no Checkout/Bricks
         "payment_methods": {
-            "excluded_payment_types": [{"id":"atm"}, {"id":"digital_currency"}],
+            "excluded_payment_types": [
+                {"id": "credit_card"},
+                {"id": "debit_card"},
+                {"id": "ticket"},
+                {"id": "atm"},
+                {"id": "account_money"},
+                {"id": "digital_currency"}
+            ],
+            "default_payment_method_id": "pix",
         },
+        "binary_mode": True,
         # URL pública para receber webhook (configure BACKEND_URL no .env)
         "notification_url": f"{settings.BACKEND_URL}/api/payments/webhook",
     }
