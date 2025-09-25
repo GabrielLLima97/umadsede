@@ -70,14 +70,15 @@ export default function CheckoutModal({ open, onClose }: Props){
       const bricks = mp.bricks();
       const mount = document.getElementById('mp-payment');
       if (mount) mount.innerHTML = '';
+      const amount = Math.max(1, Number(total) || 0); // MP pode rejeitar valores muito baixos (ex.: < 1)
       bricks.create('payment', 'mp-payment', {
-        initialization: { amount: Number(total) },
+        initialization: { amount },
         customization: {
           paymentMethods: {
             creditCard: 'disabled',
             debitCard: 'disabled',
             ticket: 'disabled',
-            bankTransfer: 'enabled', // exibe Pix no BR
+            bankTransfer: { types: ['pix'] }, // foca apenas em Pix
           },
         },
         callbacks: {
@@ -89,7 +90,10 @@ export default function CheckoutModal({ open, onClose }: Props){
             return { paymentId: resp.data?.id };
           },
           onPaymentApproved: () => { setStep(3); clear(); },
-          onError: () => {},
+          onError: (error: any) => {
+            console.error('MP Brick error', error);
+            alert('Não foi possível inicializar o pagamento Pix. Verifique o valor mínimo (R$ 1,00) e as credenciais.');
+          },
         },
       });
     } catch {}

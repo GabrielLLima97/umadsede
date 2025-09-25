@@ -9,8 +9,7 @@ export default function ClientOrderLayout({ children }: PropsWithChildren) {
     <div className="w-full min-h-screen bg-cream">
       <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-slate-200">
         <div className="max-w-[1400px] mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="w-12" />
-          <img src="/logo.png" alt="UMADSEDE" className="h-16" />
+          <img src="/logo.png" alt="UMADSEDE" className="h-12" />
           <div>
             {isOrders && (
               <Link to="/cliente" className="btn btn-primary">Fazer pedido</Link>
