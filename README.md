@@ -14,3 +14,4 @@ Para editar preços diretamente:
   - `docker compose exec db mysql -uumadsede -pumadsede123 umadsede`
   - `UPDATE orders_item SET preco = 25.00 WHERE sku = 1;`
   - `SELECT id, sku, nome, preco FROM orders_item;`
+ testeDeploy test qui 25 set 2025 03:21:52 -04
