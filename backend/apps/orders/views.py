@@ -162,12 +162,11 @@ class PedidoView(viewsets.ModelViewSet):
                 for pi in itens:
                     it = map_items.get(pi.item_id)
                     if not it: continue
-                    novos_vendidos = it.vendidos + pi.qtd
-                    if it.estoque_inicial is not None:
-                        max_vendidos = max(it.estoque_inicial, 0)
-                        if novos_vendidos > max_vendidos:
-                            novos_vendidos = max_vendidos
-                    it.vendidos = novos_vendidos
+                    limite = getattr(it, "estoque_inicial", None)
+                    if isinstance(limite, int) and limite > 0:
+                        it.vendidos = min(it.vendidos + pi.qtd, limite)
+                    else:
+                        it.vendidos = it.vendidos + pi.qtd
                     it.save(update_fields=["vendidos"])
             pedido.save()
         # broadcast
