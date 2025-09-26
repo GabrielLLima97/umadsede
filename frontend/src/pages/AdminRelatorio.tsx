@@ -58,7 +58,7 @@ export default function AdminRelatorio(){
     });
     // mais antigos primeiro
     return bySearch.sort((a,b)=> new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-  },[orders, from, to]);
+  },[orders, from, to, status, paidOnly, q, origem]);
 
   const itemsMap = useMemo(()=>{
     const m: Record<number, Item> = {};
@@ -161,94 +161,47 @@ export default function AdminRelatorio(){
         </div>
       </div>
 
-      {/* Gráfico: origem das vendas (site vs caixa) */}
-      <div className="card">
-        <div className="font-black mb-2">Origem das vendas</div>
-        {(()=>{
-          const site = resumo.origem?.site||0; const caixa = resumo.origem?.caixa||0;
-          const total = site+caixa || 1; const ps = Math.round(site/total*100); const pc = 100-ps;
-          return (
-            <div>
-              <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden">
-                <div className="h-full bg-brand-primary" style={{ width: `${ps}%` }}></div>
-              </div>
-              <div className="mt-2 flex gap-4 text-sm">
-                <div><span className="inline-block w-3 h-3 bg-brand-primary mr-2 rounded-sm"></span>Site: {site} ({ps}%)</div>
-                <div><span className="inline-block w-3 h-3 bg-slate-400 mr-2 rounded-sm"></span>Caixa: {caixa} ({pc}%)</div>
-              </div>
-            </div>
-          );
-        })()}
-      </div>
-
-      {/* Gráfico: meios de pagamento (pizza simples) */}
-      <div className="card">
-        <div className="font-black mb-2">Meios de pagamento</div>
-        {(()=>{
-          const entries = Object.entries(resumo.meio||{});
-          const total = entries.reduce((s, [_k,v])=> s + Number(v||0), 0) || 1;
-          let acc = 0; const segs = entries.map(([k,v], idx)=>{
-            const pct = Number(v)/total; const start = acc; acc += pct;
-            const hue = (idx*67)%360; // paleta simples
-            return { k, v: Number(v), start, end: acc, color: `hsl(${hue} 70% 50%)` };
-          });
-          const grad = segs.map(s=> `${s.color} ${Math.round(s.start*360)}deg ${Math.round(s.end*360)}deg`).join(',');
-          return (
-            <div className="flex items-center gap-4">
-              <div className="w-32 h-32 rounded-full" style={{ background: `conic-gradient(${grad})` }}></div>
-              <div className="flex flex-col gap-1 text-sm">
-                {segs.map(s=> (
-                  <div key={s.k} className="flex items-center gap-2">
-                    <span className="inline-block w-3 h-3 rounded-sm" style={{ background: s.color }}></span>
-                    <span>{s.k}</span>
-                    <span className="font-bold">{Math.round((s.v/total)*100)}%</span>
-                    <span className="text-slate-600">({s.v})</span>
+      {/* 4 pizzas lado a lado */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+        {(() => {
+          const mkPie = (entries: [string, number][], title: string) => {
+            const total = entries.reduce((s, [,v])=> s + (v||0), 0) || 1;
+            let acc = 0; const segs = entries.map(([k,v], idx)=>{
+              const pct = (v||0)/total; const start = acc; acc += pct;
+              const hue = (idx*67)%360;
+              return { k, v, start, end: acc, color: `hsl(${hue} 70% 50%)` };
+            });
+            const grad = segs.map(s=> `${s.color} ${Math.round(s.start*360)}deg ${Math.round(s.end*360)}deg`).join(',');
+            return (
+              <div className="card">
+                <div className="font-black mb-2">{title}</div>
+                <div className="flex items-center gap-4">
+                  <div className="w-32 h-32 rounded-full" style={{ background: `conic-gradient(${grad})` }}></div>
+                  <div className="flex flex-col gap-1 text-sm">
+                    {segs.map(s=> (
+                      <div key={s.k} className="flex items-center gap-2">
+                        <span className="inline-block w-3 h-3 rounded-sm" style={{ background: s.color }}></span>
+                        <span className="truncate max-w-[160px]" title={s.k}>{s.k}</span>
+                        <span className="font-bold">{Math.round((s.v/total)*100)}%</span>
+                        <span className="text-slate-600">({s.v})</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="card">
-          <div className="font-black mb-3">Pedidos por status</div>
-          <div className="flex flex-col gap-2">
-            {Object.entries(resumo.porStatus||{}).map(([k,v])=>{
-              const total = orders.length || 1;
-              const pct = Math.round((Number(v)/total)*100);
-              const color = k === 'pago' ? 'bg-emerald-500' : k === 'pronto' ? 'bg-brand-primary' : 'bg-amber-500';
-              return (
-                <div key={k} className="flex items-center gap-3">
-                  <div className="w-24 text-sm capitalize">{k}</div>
-                  <div className="flex-1 h-3 bg-slate-200 rounded-full overflow-hidden">
-                    <div className={`h-full ${color}`} style={{ width: `${pct}%` }}></div>
-                  </div>
-                  <div className="w-12 text-right text-sm font-bold">{v}</div>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-        <div className="card">
-          <div className="font-black mb-3">Vendas por categoria (qtd)</div>
-          <div className="flex flex-col gap-2">
-            {cats.map(c=>{
-              const total = (resumo.vendidosTotal||1);
-              const val = resumo.porCategoria[c]||0;
-              const pct = Math.round((val/total)*100);
-              return (
-                <div key={c} className="flex items-center gap-3">
-                  <div className="w-24 text-sm">{c}</div>
-                  <div className="flex-1 h-3 bg-slate-200 rounded-full overflow-hidden">
-                    <div className="h-full bg-brand-primary" style={{ width: `${pct}%` }}></div>
-                  </div>
-                  <div className="w-12 text-right text-sm font-bold">{val}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+              </div>
+            );
+          };
+          const origemEntries: [string, number][] = [["Site", resumo.origem?.site||0],["Caixa", resumo.origem?.caixa||0]];
+          const meioEntries = Object.entries(resumo.meio||{}).map(([k,v])=> [k, Number(v||0)]) as [string, number][];
+          const statusEntries = Object.entries(resumo.porStatus||{}).map(([k,v])=> [k, Number(v||0)]) as [string, number][];
+          const catEntries = Object.entries(resumo.porCategoria||{}).map(([k,v])=> [k, Number(v||0)]) as [string, number][];
+          return <>
+            {mkPie(origemEntries, 'Origem das vendas')}
+            {mkPie(meioEntries, 'Meios de pagamento')}
+            {mkPie(statusEntries, 'Pedidos por status')}
+            {mkPie(catEntries, 'Vendas por categoria')}
+          </>;
+        })()}
       </div>
       <div className="card">
         <div className="font-black mb-2">Top itens vendidos</div>
