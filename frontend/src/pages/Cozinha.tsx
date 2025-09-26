@@ -34,6 +34,8 @@ export default function Cozinha(){
   const update = (id:number, status:string)=> api.patch(`/orders/${id}/status/`,{status}).then(carregar);
 
   const col = (s:string)=> dados.filter(p=>p.status===s);
+  const sortByCreated = (arr:any[]) =>
+    [...arr].sort((a,b)=> new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   const nextOf:any = {"pago":"a preparar","a preparar":"em produção","em produção":"pronto","pronto":"finalizado","finalizado":"finalizado"};
   const prevOf:any = {"finalizado":"pronto","pronto":"em produção","em produção":"a preparar","a preparar":"pago","pago":"pago"};
 
@@ -50,8 +52,16 @@ export default function Cozinha(){
             <span className="px-2 py-1 rounded-full text-xs font-black bg-white/70">{String(col("pago").length + col("a preparar").length)}</span>
           </div>
           <div className="flex flex-col gap-3">
-            {col("pago").concat(col("a preparar")).map(p=>(
-              <OrderCard key={p.id} p={p} itemsMap={itemsMap} now={now} onPrev={()=>update(p.id, prevOf[p.status])} onNext={()=>update(p.id, nextOf[p.status])} />
+            {sortByCreated(col("pago").concat(col("a preparar"))).map(p=>(
+              <OrderCard
+                key={p.id}
+                p={p}
+                itemsMap={itemsMap}
+                now={now}
+                onPrev={()=>update(p.id, prevOf[p.status])}
+                // Avança diretamente de "pago" ou "a preparar" para "em produção" com um clique
+                onNext={()=>update(p.id, "em produção")}
+              />
             ))}
           </div>
         </div>
@@ -62,7 +72,7 @@ export default function Cozinha(){
             <span className="px-2 py-1 rounded-full text-xs font-black bg-white/70">{String(col("em produção").length)}</span>
           </div>
           <div className="flex flex-col gap-3">
-            {col("em produção").map(p=>(
+            {sortByCreated(col("em produção")).map(p=>(
               <OrderCard key={p.id} p={p} itemsMap={itemsMap} now={now} onPrev={()=>update(p.id, prevOf[p.status])} onNext={()=>update(p.id, nextOf[p.status])} />
             ))}
           </div>
@@ -74,7 +84,7 @@ export default function Cozinha(){
             <span className="px-2 py-1 rounded-full text-xs font-black bg-white/70">{String(col("pronto").length)}</span>
           </div>
           <div className="flex flex-col gap-3">
-            {col("pronto").map(p=>(
+            {sortByCreated(col("pronto")).map(p=>(
               <OrderCard key={p.id} p={p} itemsMap={itemsMap} now={now} onPrev={()=>update(p.id, prevOf[p.status])} onNext={()=>update(p.id, nextOf[p.status])} />
             ))}
           </div>
