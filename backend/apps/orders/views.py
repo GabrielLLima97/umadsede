@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from django.utils import timezone
 from django.db import transaction
 from decimal import Decimal
+from django.db import transaction
 from django.db.models import Q
 from .models import Item, Pedido
 from .serializers import ItemSerializer, PedidoSerializer
@@ -143,10 +144,32 @@ class PedidoView(viewsets.ModelViewSet):
     def status(self, request, pk=None):
         pedido = self.get_object()
         de = pedido.status
-        pedido.status = request.data.get("status", de)
-        if pedido.status == "pago" and not pedido.paid_at:
-            pedido.paid_at = timezone.now()
-        pedido.save()
+        novo = request.data.get("status", de)
+        with transaction.atomic():
+            pedido = self.get_object()
+            de = pedido.status
+            pedido.status = novo
+            aprovando = (de != "pago" and novo == "pago" and not pedido.paid_at)
+            if aprovando:
+                # marca pago e atualiza vendidos/estoque
+                pedido.paid_at = timezone.now()
+                from .models import PedidoItem, Item
+                itens = PedidoItem.objects.select_related("item").filter(pedido=pedido)
+                # lock itens de estoque
+                item_ids = [pi.item_id for pi in itens]
+                items_locked = list(Item.objects.select_for_update().filter(id__in=item_ids))
+                map_items = {it.id: it for it in items_locked}
+                for pi in itens:
+                    it = map_items.get(pi.item_id)
+                    if not it: continue
+                    novos_vendidos = it.vendidos + pi.qtd
+                    if it.estoque_inicial is not None:
+                        max_vendidos = max(it.estoque_inicial, 0)
+                        if novos_vendidos > max_vendidos:
+                            novos_vendidos = max_vendidos
+                    it.vendidos = novos_vendidos
+                    it.save(update_fields=["vendidos"])
+            pedido.save()
         # broadcast
         try:
             layer = get_channel_layer()
