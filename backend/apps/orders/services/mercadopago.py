@@ -180,12 +180,8 @@ def processar_webhook(payload: dict):
             it = map_items.get(pi.item_id)
             if not it:
                 continue
-            # Atualiza vendidos; só aplica limite se estoque_inicial > 0
-            limite = getattr(it, "estoque_inicial", None)
-            if isinstance(limite, int) and limite > 0:
-                it.vendidos = min(it.vendidos + pi.qtd, limite)
-            else:
-                it.vendidos = it.vendidos + pi.qtd
+            # Atualiza vendidos sempre; cálculo de disponível usa max(estoque_inicial - vendidos, 0)
+            it.vendidos = it.vendidos + pi.qtd
             it.save(update_fields=["vendidos"])
 
         pag.status = "approved"

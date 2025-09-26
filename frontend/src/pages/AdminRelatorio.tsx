@@ -104,7 +104,7 @@ export default function AdminRelatorio(){
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div className="text-2xl font-black">Relatórios</div>
-        <button className="btn btn-ghost" onClick={carregar}>Atualizar</button>
+        <button className="btn bg-emerald-600 border-emerald-700 text-white hover:bg-emerald-700" onClick={carregar}>Atualizar</button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
         <div className="card flex items-center gap-2">
