@@ -12,6 +12,7 @@ type Pedido = {
   observacoes?: string;
   paid_at?: string;
   itens?: { item:number; nome:string; preco:number; qtd:number }[];
+  meio_pagamento?: string;
 };
 type Item = { id:number; nome:string; categoria?:string; vendidos:number; preco:number };
 
@@ -24,6 +25,7 @@ export default function AdminRelatorio(){
   const [status,setStatus]=useState<string>("");
   const [paidOnly,setPaidOnly]=useState<boolean>(false);
   const [q,setQ]=useState<string>("");
+  const [origem,setOrigem]=useState<string>(""); // "cliente" | "caixa" | ""
 
   const carregar = async ()=>{
     const [po, it] = await Promise.all([
@@ -46,8 +48,10 @@ export default function AdminRelatorio(){
     });
     const byStatus = status ? base.filter(o=> o.status === status) : base;
     const byPaid = paidOnly ? byStatus.filter(o=> o.status==='pago' || !!o.paid_at) : byStatus;
+    // filtro por origem: cliente (Mercado Pago) vs caixa (demais meios)
+    const byOrigin = origem ? byPaid.filter((o:any)=> origem==='cliente' ? String(o.meio_pagamento||'').toLowerCase().includes('mercado') : !String(o.meio_pagamento||'').toLowerCase().includes('mercado')) : byPaid;
     const qq = q.trim().toLowerCase();
-    const bySearch = !qq ? byPaid : byPaid.filter((o:any)=>{
+    const bySearch = !qq ? byOrigin : byOrigin.filter((o:any)=>{
       const hay = [o.cliente_nome, o.cliente_waid, o.observacoes, String(o.id)]
         .concat((o.itens||[]).map((i:any)=> i.nome)).join(' ').toLowerCase();
       return hay.includes(qq);
@@ -102,6 +106,14 @@ export default function AdminRelatorio(){
         <div className="card flex items-center gap-2">
           <label className="text-sm">Busca</label>
           <input className="input" placeholder="Cliente, item, observação..." value={q} onChange={e=>setQ(e.target.value)} />
+        </div>
+        <div className="card flex items-center gap-2">
+          <label className="text-sm">Origem</label>
+          <select className="input" value={origem} onChange={e=>setOrigem(e.target.value)}>
+            <option value="">Todas</option>
+            <option value="cliente">Cliente (site)</option>
+            <option value="caixa">Vendas (Caixa)</option>
+          </select>
         </div>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -196,6 +208,7 @@ export default function AdminRelatorio(){
                   <div className={`rounded-full px-3 py-1 text-sm font-bold ${isPago? 'bg-emerald-100 text-emerald-800':'bg-amber-100 text-amber-800'}`}>{o.status}</div>
                 </div>
                 <div className="text-sm text-slate-600">{new Date(o.created_at).toLocaleString()} • WhatsApp: {o.cliente_waid||'-'}</div>
+                <div className="text-sm text-slate-600 mt-1">Origem: <span className="font-bold">{String(o.meio_pagamento||'').toLowerCase().includes('mercado')? 'Cliente (site)':'Vendas (Caixa)'} — {o.meio_pagamento||'-'}</span></div>
                 {o.observacoes && (
                   <div className="mt-2 text-sm"><span className="font-bold">Observações:</span> {o.observacoes}</div>
                 )}
