@@ -60,17 +60,43 @@ export default function AdminRelatorio(){
     return bySearch.sort((a,b)=> new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   },[orders, from, to]);
 
+  const itemsMap = useMemo(()=>{
+    const m: Record<number, Item> = {};
+    (items||[]).forEach(it=> { if(it && typeof it.id==='number') m[it.id]=it; });
+    return m;
+  },[items]);
+
   const resumo = useMemo(()=>{
     const totalVendas = filteredOrders.reduce((s,o)=> s + (Number(o.valor_total)||0), 0);
-    const pedidosPago = filteredOrders.filter(o=> o.status === "pago" || !!(o as any).paid_at).length;
+    const pedidosPago = filteredOrders.filter(o=> o.status === "pago" || !!o.paid_at).length;
     const porStatus: Record<string, number> = {};
-    filteredOrders.forEach(o=>{ porStatus[o.status] = (porStatus[o.status]||0)+1; });
-    const vendidosTotal = items.reduce((s,it)=> s + (it.vendidos||0), 0);
+    const origem: { site: number; caixa: number } = { site:0, caixa:0 };
+    const meio: Record<string, number> = {};
     const porCategoria: Record<string, number> = {};
-    items.forEach(it=>{ const c = it.categoria || "Outros"; porCategoria[c]=(porCategoria[c]||0)+it.vendidos; });
-    const topItens = [...items].sort((a,b)=> (b.vendidos||0) - (a.vendidos||0)).slice(0,10);
-    return { totalVendas, pedidosPago, porStatus, vendidosTotal, porCategoria, topItens };
-  },[filteredOrders, items]);
+    const itensAgg: Record<string, number> = {};
+
+    filteredOrders.forEach((o:any)=>{
+      porStatus[o.status] = (porStatus[o.status]||0)+1;
+      const mp = String(o.meio_pagamento||'').toLowerCase();
+      if(mp.includes('mercado')) origem.site++; else origem.caixa++;
+      const key = o.meio_pagamento || '—';
+      meio[key] = (meio[key]||0)+1;
+      (o.itens||[]).forEach((i:any)=>{
+        const cat = itemsMap[i.item]?.categoria || 'Outros';
+        porCategoria[cat] = (porCategoria[cat]||0) + Number(i.qtd||0);
+        const nm = i.nome || `#${i.item}`;
+        itensAgg[nm] = (itensAgg[nm]||0) + Number(i.qtd||0);
+      });
+    });
+
+    const vendidosTotal = Object.values(porCategoria).reduce((a,b)=> a+b, 0);
+    const topItens = Object.entries(itensAgg)
+      .map(([nome, qtd])=> ({ id: nome, nome, vendidos: qtd as number }))
+      .sort((a,b)=> (b.vendidos||0) - (a.vendidos||0))
+      .slice(0,10);
+
+    return { totalVendas, pedidosPago, porStatus, vendidosTotal, porCategoria, topItens, origem, meio };
+  },[filteredOrders, itemsMap]);
 
   const cats = Object.keys(resumo.porCategoria||{});
 
@@ -134,6 +160,56 @@ export default function AdminRelatorio(){
           <div className="text-3xl font-black">{filteredOrders.length}</div>
         </div>
       </div>
+
+      {/* Gráfico: origem das vendas (site vs caixa) */}
+      <div className="card">
+        <div className="font-black mb-2">Origem das vendas</div>
+        {(()=>{
+          const site = resumo.origem?.site||0; const caixa = resumo.origem?.caixa||0;
+          const total = site+caixa || 1; const ps = Math.round(site/total*100); const pc = 100-ps;
+          return (
+            <div>
+              <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden">
+                <div className="h-full bg-brand-primary" style={{ width: `${ps}%` }}></div>
+              </div>
+              <div className="mt-2 flex gap-4 text-sm">
+                <div><span className="inline-block w-3 h-3 bg-brand-primary mr-2 rounded-sm"></span>Site: {site} ({ps}%)</div>
+                <div><span className="inline-block w-3 h-3 bg-slate-400 mr-2 rounded-sm"></span>Caixa: {caixa} ({pc}%)</div>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* Gráfico: meios de pagamento (pizza simples) */}
+      <div className="card">
+        <div className="font-black mb-2">Meios de pagamento</div>
+        {(()=>{
+          const entries = Object.entries(resumo.meio||{});
+          const total = entries.reduce((s, [_k,v])=> s + Number(v||0), 0) || 1;
+          let acc = 0; const segs = entries.map(([k,v], idx)=>{
+            const pct = Number(v)/total; const start = acc; acc += pct;
+            const hue = (idx*67)%360; // paleta simples
+            return { k, v: Number(v), start, end: acc, color: `hsl(${hue} 70% 50%)` };
+          });
+          const grad = segs.map(s=> `${s.color} ${Math.round(s.start*360)}deg ${Math.round(s.end*360)}deg`).join(',');
+          return (
+            <div className="flex items-center gap-4">
+              <div className="w-32 h-32 rounded-full" style={{ background: `conic-gradient(${grad})` }}></div>
+              <div className="flex flex-col gap-1 text-sm">
+                {segs.map(s=> (
+                  <div key={s.k} className="flex items-center gap-2">
+                    <span className="inline-block w-3 h-3 rounded-sm" style={{ background: s.color }}></span>
+                    <span>{s.k}</span>
+                    <span className="font-bold">{Math.round((s.v/total)*100)}%</span>
+                    <span className="text-slate-600">({s.v})</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="card">
           <div className="font-black mb-3">Pedidos por status</div>
@@ -196,36 +272,46 @@ export default function AdminRelatorio(){
       </div>
 
       {/* Relatório detalhado por pedido */}
-      <div className="card">
+      <div className="card overflow-x-auto">
         <div className="font-black mb-3">Relatório detalhado ({filteredOrders.length})</div>
-        <div className="flex flex-col gap-3">
-          {filteredOrders.map((o:any)=>{
-            const isPago = o.status==='pago' || !!o.paid_at;
-            return (
-              <div key={o.id} className="rounded-xl border border-slate-200 p-3">
-                <div className="flex items-center justify-between">
-                  <div className="font-black">Pedido #{o.id} — {o.cliente_nome||'-'}</div>
-                  <div className={`rounded-full px-3 py-1 text-sm font-bold ${isPago? 'bg-emerald-100 text-emerald-800':'bg-amber-100 text-amber-800'}`}>{o.status}</div>
-                </div>
-                <div className="text-sm text-slate-600">{new Date(o.created_at).toLocaleString()} • WhatsApp: {o.cliente_waid||'-'}</div>
-                <div className="text-sm text-slate-600 mt-1">Origem: <span className="font-bold">{String(o.meio_pagamento||'').toLowerCase().includes('mercado')? 'Cliente (site)':'Vendas (Caixa)'} — {o.meio_pagamento||'-'}</span></div>
-                {o.observacoes && (
-                  <div className="mt-2 text-sm"><span className="font-bold">Observações:</span> {o.observacoes}</div>
-                )}
-                <div className="mt-2">
-                  <div className="font-bold mb-1">Itens</div>
-                  <ul className="list-disc pl-5 text-sm">
-                    {(o.itens||[]).map((i:any,idx:number)=>(
-                      <li key={idx}>{i.qtd} × {i.nome} {i.preco? `— ${brl.format(Number(i.preco))}`:''}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="mt-2 font-black">Total: {brl.format(Number(o.valor_total)||0)}</div>
-              </div>
-            );
-          })}
-          {filteredOrders.length===0 && <div className="text-slate-500">Sem pedidos no filtro atual.</div>}
-        </div>
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr className="text-left">
+              <th className="py-2 pr-3">Pedido</th>
+              <th className="py-2 pr-3">Data</th>
+              <th className="py-2 pr-3">Cliente</th>
+              <th className="py-2 pr-3">WhatsApp</th>
+              <th className="py-2 pr-3">Origem/Meio</th>
+              <th className="py-2 pr-3">Status</th>
+              <th className="py-2 pr-3">Itens</th>
+              <th className="py-2 pr-3">Observações</th>
+              <th className="py-2 pr-3">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredOrders.map((o:any)=>{
+              const isPago = o.status==='pago' || !!o.paid_at;
+              const origemTxt = String(o.meio_pagamento||'').toLowerCase().includes('mercado')? 'Cliente (site)':'Vendas (Caixa)';
+              const itensTxt = (o.itens||[]).map((i:any)=> `${i.qtd}× ${i.nome}`).join(', ');
+              return (
+                <tr key={o.id} className="border-t border-slate-200 align-top">
+                  <td className="py-2 pr-3 font-bold">#{o.id}</td>
+                  <td className="py-2 pr-3">{new Date(o.created_at).toLocaleString()}</td>
+                  <td className="py-2 pr-3">{o.cliente_nome||'-'}</td>
+                  <td className="py-2 pr-3">{o.cliente_waid||'-'}</td>
+                  <td className="py-2 pr-3">{origemTxt} — {o.meio_pagamento||'-'}</td>
+                  <td className="py-2 pr-3">
+                    <span className={`rounded-full px-2 py-1 ${isPago? 'bg-emerald-100 text-emerald-800':'bg-amber-100 text-amber-800'}`}>{o.status}</span>
+                  </td>
+                  <td className="py-2 pr-3">{itensTxt}</td>
+                  <td className="py-2 pr-3">{o.observacoes||''}</td>
+                  <td className="py-2 pr-3 font-black">{brl.format(Number(o.valor_total)||0)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {filteredOrders.length===0 && <div className="text-slate-500">Sem pedidos no filtro atual.</div>}
       </div>
     </div>
   );
