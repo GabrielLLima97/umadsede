@@ -26,14 +26,20 @@ export function OrderCard({p, itemsMap, now, onPrev, onNext}:{
   });
   const cats = Object.keys(groups).sort((a,b)=> a.localeCompare(b));
   const { text, overSla } = elapsedInfo(p.created_at, now);
+  const precisaEmbalagem = !!p.precisa_embalagem;
+  const embalagemColor = precisaEmbalagem ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600";
+  const embalagemTexto = precisaEmbalagem ? "Com embalagem" : "Sem embalagem";
   return (
     <div className="card">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div className="flex items-baseline gap-3">
           <div className="text-2xl font-black">#{p.id}</div>
           <div className="text-xl font-extrabold">{p.cliente_nome}</div>
         </div>
-        <div className={`text-sm font-black ${overSla?"text-rose-600":"text-slate-500"}`}>{text} {overSla?"• SLA":""}</div>
+        <div className="flex items-center gap-2">
+          <Badge text={embalagemTexto} color={embalagemColor} />
+          <div className={`text-sm font-black ${overSla?"text-rose-600":"text-slate-500"}`}>{text} {overSla?"• SLA":""}</div>
+        </div>
       </div>
       {typeof p.observacoes === 'string' && p.observacoes.trim() && (
         <div className="mt-2 rounded-xl bg-brand-cream border border-slate-200 p-2 text-sm">

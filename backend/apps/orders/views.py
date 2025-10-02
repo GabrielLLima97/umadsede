@@ -92,6 +92,12 @@ class PedidoView(viewsets.ModelViewSet):
         # normalização simples de WA: manter dígitos
         waid = "".join([c for c in waid if c.isdigit()])
 
+        precisa_embalagem = data.get("precisa_embalagem", False)
+        if isinstance(precisa_embalagem, str):
+            precisa_embalagem = precisa_embalagem.strip().lower() in {"1", "true", "t", "sim", "yes"}
+        else:
+            precisa_embalagem = bool(precisa_embalagem)
+
         # Carregar itens por sku ou id e validar estoque
         items_map_by_sku = {it.sku: it for it in Item.objects.all()}
 
@@ -127,6 +133,7 @@ class PedidoView(viewsets.ModelViewSet):
                 status="aguardando pagamento",
                 meio_pagamento=(data.get("meio_pagamento") or "Mercado Pago"),
                 observacoes=(data.get("observacoes") or ""),
+                precisa_embalagem=precisa_embalagem,
             )
             from .models import PedidoItem as PI
             for it in pedido_itens:

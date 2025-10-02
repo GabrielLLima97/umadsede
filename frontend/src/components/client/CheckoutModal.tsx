@@ -27,7 +27,8 @@ export default function CheckoutModal({ open, onClose }: Props){
   const pushToast = useToast(s=>s.push);
   const [verifying,setVerifying] = useState(false);
   const [copied,setCopied] = useState(false);
-  const [orderInfo,setOrderInfo] = useState<{ id?: number; nome?: string; total?: number }>({});
+  const [orderInfo,setOrderInfo] = useState<{ id?: number; nome?: string; total?: number; precisa_embalagem?: boolean }>({});
+  const [precisaEmbalagem,setPrecisaEmbalagem] = useState(false);
 
   const valid = nome.trim().length>1 && waid.replace(/\D/g, "").length>=10;
 
@@ -40,10 +41,11 @@ export default function CheckoutModal({ open, onClose }: Props){
         cliente_waid: waid.replace(/\D/g, ""),
         itens: items.map(i=> ({ sku: i.sku, qtd: i.qtd })),
         observacoes: obs,
+        precisa_embalagem: precisaEmbalagem,
       };
       const p = await api.post("/orders/", payload);
       setPedidoId(p.data.id);
-      setOrderInfo({ id: p.data.id, nome, total });
+      setOrderInfo({ id: p.data.id, nome, total, precisa_embalagem: !!p.data?.precisa_embalagem || precisaEmbalagem });
       // Guarda referência do pedido para o histórico local
       try{
         addOrderRef({ id: p.data.id, createdAt: new Date().toISOString(), total, name: nome });
@@ -78,6 +80,8 @@ export default function CheckoutModal({ open, onClose }: Props){
       if(r.data.status === "pago"){
         setStep(3);
         clear();
+        setPrecisaEmbalagem(false);
+        setOrderInfo(prev => ({ ...prev, precisa_embalagem: !!r.data?.precisa_embalagem }));
       } else {
         pushToast({ type:'info', message:'Pagamento ainda não confirmado. Tente novamente em instantes.' });
       }
@@ -95,7 +99,11 @@ export default function CheckoutModal({ open, onClose }: Props){
       try{
         const r = await api.get(`/orders/${pedidoId}/`);
         if(r.data?.status==='pago'){
-          setStep(3); clear(); return;
+          setStep(3);
+          clear();
+          setPrecisaEmbalagem(false);
+          setOrderInfo(prev => ({ ...prev, precisa_embalagem: !!r.data?.precisa_embalagem }));
+          return;
         }
         if(++tries < 45) setTimeout(tick, 4000); // ~3min
       } catch{}
@@ -132,6 +140,27 @@ export default function CheckoutModal({ open, onClose }: Props){
                     <div>
                       <label className="text-sm font-bold">Observações</label>
                       <textarea className="input" rows={3} value={obs} onChange={e=>setObs(e.target.value)} aria-label="Observações do pedido" />
+                    </div>
+                    <label className="text-sm font-bold">Embalagem para entrega?</label>
+                    <div className="flex gap-2 mt-1">
+                      <button
+                        type="button"
+                        className={`btn ${!precisaEmbalagem?"btn-primary":"btn-ghost"}`}
+                        onClick={()=>setPrecisaEmbalagem(false)}
+                        aria-pressed={!precisaEmbalagem}
+                        aria-label="Sem embalagem para entrega"
+                      >
+                        Não
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn ${precisaEmbalagem?"btn-primary":"btn-ghost"}`}
+                        onClick={()=>setPrecisaEmbalagem(true)}
+                        aria-pressed={precisaEmbalagem}
+                        aria-label="Precisa de embalagem para entrega"
+                      >
+                        Sim
+                      </button>
                     </div>
                     <div className="flex items-center justify-between mt-2">
                       <div className="font-black">Total: {brl.format(total)}</div>
@@ -183,6 +212,9 @@ export default function CheckoutModal({ open, onClose }: Props){
                       <div className="text-3xl font-black">#{orderInfo.id}</div>
                       <div className="text-sm text-slate-700 mt-2">Cliente: <span className="font-bold">{orderInfo.nome}</span></div>
                       <div className="text-sm text-slate-700">Total: <span className="font-bold">{brl.format(orderInfo.total||0)}</span></div>
+                      {typeof orderInfo.precisa_embalagem !== 'undefined' && (
+                        <div className="text-sm text-slate-700 mt-1">Embalagem: <span className="font-bold">{orderInfo.precisa_embalagem?"Sim":"Não"}</span></div>
+                      )}
                     </div>
                     <div className="flex gap-2 justify-end">
                       {orderInfo.id && (

@@ -20,5 +20,6 @@ class PedidoSerializer(serializers.ModelSerializer):
         fields = [
             "id","cliente_nome","cliente_waid","valor_total","status",
             "meio_pagamento","provider_payment_id","payment_link","observacoes",
+            "precisa_embalagem",
             "created_at","paid_at","itens"
         ]

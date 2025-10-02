@@ -34,6 +34,7 @@ class Pedido(models.Model):
     provider_payment_id = models.CharField(max_length=120, blank=True)
     payment_link = models.URLField(blank=True)
     observacoes = models.TextField(blank=True)
+    precisa_embalagem = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     paid_at = models.DateTimeField(null=True, blank=True)
 
