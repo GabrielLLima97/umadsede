@@ -368,6 +368,7 @@ ROUTE_OPTIONS = [
 
 @api_view(["GET"])
 @authentication_classes([])
+@permission_classes([permissions.AllowAny])
 def admin_routes(request):
     require_dashboard_user(request)
     return Response(ROUTE_OPTIONS)
@@ -375,6 +376,7 @@ def admin_routes(request):
 
 @api_view(["GET"])
 @authentication_classes([])
+@permission_classes([permissions.AllowAny])
 def admin_metrics(request):
     require_dashboard_user(request)
     systems = []
@@ -465,6 +467,7 @@ def admin_login(request):
 
 @api_view(["POST"])
 @authentication_classes([])
+@permission_classes([permissions.AllowAny])
 def admin_logout(request):
     token = getattr(request, "_cached_dashboard_token", None)
     if not token:
@@ -477,6 +480,7 @@ def admin_logout(request):
 
 @api_view(["GET"])
 @authentication_classes([])
+@permission_classes([permissions.AllowAny])
 def admin_me(request):
     user = require_dashboard_user(request)
     return Response({"user": DashboardUserSerializer(user).data})
