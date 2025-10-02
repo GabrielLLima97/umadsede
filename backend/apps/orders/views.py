@@ -13,6 +13,7 @@ from channels.layers import get_channel_layer
 import os
 import psutil
 import redis
+from django.views.decorators.csrf import csrf_exempt
 
 from .models import Item, Pedido, CategoryOrder, DashboardUser, AuthToken
 from .serializers import (
@@ -446,6 +447,7 @@ def admin_metrics(request):
 @api_view(["POST"])
 @authentication_classes([])
 @permission_classes([permissions.AllowAny])
+@csrf_exempt
 def admin_login(request):
     username = (request.data.get("username") or "").strip().lower()
     password = request.data.get("password") or ""
@@ -468,6 +470,7 @@ def admin_login(request):
 @api_view(["POST"])
 @authentication_classes([])
 @permission_classes([permissions.AllowAny])
+@csrf_exempt
 def admin_logout(request):
     token = getattr(request, "_cached_dashboard_token", None)
     if not token:
