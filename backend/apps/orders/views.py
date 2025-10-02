@@ -1,5 +1,5 @@
 from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes, authentication_classes
 from rest_framework.response import Response
 from rest_framework.exceptions import AuthenticationFailed
 from django.utils import timezone
@@ -367,12 +367,14 @@ ROUTE_OPTIONS = [
 
 
 @api_view(["GET"])
+@authentication_classes([])
 def admin_routes(request):
     require_dashboard_user(request)
     return Response(ROUTE_OPTIONS)
 
 
 @api_view(["GET"])
+@authentication_classes([])
 def admin_metrics(request):
     require_dashboard_user(request)
     systems = []
@@ -440,6 +442,7 @@ def admin_metrics(request):
 
 
 @api_view(["POST"])
+@authentication_classes([])
 @permission_classes([permissions.AllowAny])
 def admin_login(request):
     username = (request.data.get("username") or "").strip().lower()
@@ -461,6 +464,7 @@ def admin_login(request):
 
 
 @api_view(["POST"])
+@authentication_classes([])
 def admin_logout(request):
     token = getattr(request, "_cached_dashboard_token", None)
     if not token:
@@ -472,6 +476,7 @@ def admin_logout(request):
 
 
 @api_view(["GET"])
+@authentication_classes([])
 def admin_me(request):
     user = require_dashboard_user(request)
     return Response({"user": DashboardUserSerializer(user).data})
