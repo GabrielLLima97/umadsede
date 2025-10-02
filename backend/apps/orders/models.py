@@ -70,3 +70,35 @@ class Pagamento(models.Model):
     init_point = models.URLField(blank=True, max_length=1024)
     raw = models.JSONField(default=dict)
     updated_at = models.DateTimeField(auto_now=True)
+
+
+class DashboardUser(models.Model):
+    username = models.CharField(max_length=60, unique=True)
+    name = models.CharField(max_length=120, blank=True)
+    password_hash = models.CharField(max_length=128)
+    allowed_routes = models.JSONField(default=list, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["username"]
+
+    def __str__(self):
+        return self.username
+
+
+class AuthToken(models.Model):
+    key = models.CharField(max_length=64, unique=True)
+    user = models.ForeignKey(DashboardUser, on_delete=models.CASCADE, related_name="tokens")
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_active = models.BooleanField(default=True)
+    user_agent = models.CharField(max_length=255, blank=True)
+    ip_address = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["key", "is_active"])]
+
+    def __str__(self):
+        return f"token:{self.user.username}:{self.key[:6]}"

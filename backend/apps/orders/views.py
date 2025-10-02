@@ -1,16 +1,34 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
+from rest_framework.exceptions import AuthenticationFailed
 from django.utils import timezone
-from django.db import transaction
+from django.db import transaction, connection
 from decimal import Decimal
 from django.db.models import Q, Sum, F, Value, IntegerField, Case, When
 from django.db.models.functions import Coalesce, Greatest
-from .models import Item, Pedido, CategoryOrder
-from .serializers import ItemSerializer, PedidoSerializer, CategoryOrderSerializer
-from .services.mercadopago import criar_preferencia, processar_webhook, criar_pagamento_pix
+from django.conf import settings
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+import os
+import psutil
+import redis
+
+from .models import Item, Pedido, CategoryOrder, DashboardUser, AuthToken
+from .serializers import (
+    ItemSerializer,
+    PedidoSerializer,
+    CategoryOrderSerializer,
+    DashboardUserSerializer,
+)
+from .services.mercadopago import criar_preferencia, processar_webhook, criar_pagamento_pix
+from .auth_utils import (
+    authenticate_dashboard,
+    require_dashboard_user,
+    verify_password,
+    create_token,
+    invalidate_token,
+)
 
 class ItemView(viewsets.ModelViewSet):
     serializer_class = ItemSerializer
@@ -70,6 +88,7 @@ class ItemView(viewsets.ModelViewSet):
     # Endpoints auxiliares para contornar ambientes onde o detalhe pode falhar por filtros/roteamento
     @action(detail=False, methods=["post"], url_path="toggle_active")
     def toggle_active(self, request):
+        require_dashboard_user(request, routes=["itens", "estoque"])
         from .models import Item
         try:
             pk = int(request.data.get("id"))
@@ -84,6 +103,7 @@ class ItemView(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["patch"], url_path="update_item")
     def update_item(self, request):
+        require_dashboard_user(request, routes=["itens", "estoque"])
         from .models import Item
         try:
             pk = int(request.data.get("id"))
@@ -100,9 +120,15 @@ class ItemView(viewsets.ModelViewSet):
 class PedidoView(viewsets.ModelViewSet):
     queryset = Pedido.objects.all().order_by("-id")
     serializer_class = PedidoSerializer
-    permission_classes = [permissions.AllowAny]
+
+    def get_permissions(self):
+        if self.action in ["create"]:
+            return [permissions.AllowAny()]
+        return [permissions.AllowAny()]  # controlado manualmente
 
     def get_queryset(self):
+        if self.request.method == "GET" and self.action == "list":
+            require_dashboard_user(self.request, routes=["vendas", "cozinha", "tv", "pagamentos", "dashboard", "estoque"])
         qs = super().get_queryset()
         status_q = self.request.query_params.get("status")
         if status_q:
@@ -177,6 +203,7 @@ class PedidoView(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["patch"])
     def status(self, request, pk=None):
+        require_dashboard_user(request, routes=["vendas", "cozinha"])
         pedido = self.get_object()
         de = pedido.status
         novo = request.data.get("status", de)
@@ -214,18 +241,29 @@ class PedidoView(viewsets.ModelViewSet):
 class CategoryOrderView(viewsets.ModelViewSet):
     queryset = CategoryOrder.objects.all().order_by("ordem", "nome")
     serializer_class = CategoryOrderSerializer
-    permission_classes = [permissions.AllowAny]
+
+    def get_permissions(self):
+        return [permissions.AllowAny()]
+
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
 
     def perform_create(self, serializer):
+        require_dashboard_user(self.request, routes=["itens"])
         nome = serializer.validated_data.get("nome", "")
         serializer.save(nome=str(nome).strip())
 
     def perform_update(self, serializer):
+        require_dashboard_user(self.request, routes=["itens"])
         data = serializer.validated_data
         if "nome" in data and data["nome"] is not None:
             serializer.save(nome=str(data["nome"]).strip())
         else:
             serializer.save()
+ 
+    def destroy(self, request, *args, **kwargs):
+        require_dashboard_user(request, routes=["itens"])
+        return super().destroy(request, *args, **kwargs)
 
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
@@ -314,3 +352,155 @@ def categories_view(request):
 
     cats.sort(key=lambda c: (score(c), c.lower()))
     return Response(cats)
+
+
+ROUTE_OPTIONS = [
+    {"key": "dashboard", "label": "Dashboard"},
+    {"key": "vendas", "label": "Vendas (Caixa)"},
+    {"key": "cozinha", "label": "Cozinha"},
+    {"key": "tv", "label": "TV"},
+    {"key": "itens", "label": "Itens"},
+    {"key": "estoque", "label": "Estoque"},
+    {"key": "pagamentos", "label": "Pagamentos"},
+    {"key": "config", "label": "Configurações"},
+]
+
+
+@api_view(["GET"])
+def admin_routes(request):
+    require_dashboard_user(request)
+    return Response(ROUTE_OPTIONS)
+
+
+@api_view(["GET"])
+def admin_metrics(request):
+    require_dashboard_user(request)
+    systems = []
+    # Database
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+        systems.append({"name": "Banco de Dados", "status": "online"})
+    except Exception as exc:
+        systems.append({"name": "Banco de Dados", "status": "offline", "detail": str(exc)})
+    # Redis
+    try:
+        host = os.getenv("REDIS_HOST", "redis")
+        port = int(os.getenv("REDIS_PORT", "6379"))
+        client = redis.Redis(host=host, port=port, db=0, socket_connect_timeout=1, socket_timeout=1)
+        client.ping()
+        systems.append({"name": "Redis", "status": "online"})
+    except Exception as exc:
+        systems.append({"name": "Redis", "status": "offline", "detail": str(exc)})
+    # Mercado Pago
+    mp_status = "online" if settings.MP_ACCESS_TOKEN else "offline"
+    systems.append({"name": "Mercado Pago", "status": mp_status})
+
+    now = timezone.now()
+    active_tokens = AuthToken.objects.filter(is_active=True, expires_at__gt=now).count()
+    active_users = (
+        AuthToken.objects.filter(is_active=True, expires_at__gt=now)
+        .values("user_id")
+        .distinct()
+        .count()
+    )
+
+    cpu_percent = psutil.cpu_percent(interval=0.1)
+    virtual = psutil.virtual_memory()
+    disk = psutil.disk_usage("/")
+    load_avg = None
+    try:
+        load_avg = psutil.getloadavg()
+    except (AttributeError, OSError):
+        load_avg = None
+
+    instance = {
+        "cpu_percent": cpu_percent,
+        "memory_percent": virtual.percent,
+        "memory_total": virtual.total,
+        "memory_used": virtual.used,
+        "disk_percent": disk.percent,
+        "disk_total": disk.total,
+        "disk_used": disk.used,
+        "uptime_seconds": max(0, int(now.timestamp() - psutil.boot_time())),
+    }
+    if load_avg:
+        instance["load_avg"] = load_avg
+
+    return Response({
+        "timestamp": now,
+        "systems": systems,
+        "connections": {
+            "active_tokens": active_tokens,
+            "active_users": active_users,
+        },
+        "instance": instance,
+    })
+
+
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+def admin_login(request):
+    username = (request.data.get("username") or "").strip().lower()
+    password = request.data.get("password") or ""
+    user = DashboardUser.objects.filter(username__iexact=username, is_active=True).first()
+    if not user or not verify_password(password, user.password_hash):
+        raise AuthenticationFailed("Credenciais inválidas")
+    token = create_token(
+        user,
+        user_agent=request.META.get("HTTP_USER_AGENT", ""),
+        ip=request.META.get("REMOTE_ADDR", ""),
+    )
+    data = DashboardUserSerializer(user).data
+    return Response({
+        "token": token.key,
+        "expires_at": token.expires_at,
+        "user": data,
+    })
+
+
+@api_view(["POST"])
+def admin_logout(request):
+    token = getattr(request, "_cached_dashboard_token", None)
+    if not token:
+        auth = authenticate_dashboard(request)
+        token = getattr(request, "_cached_dashboard_token", None) if auth else None
+    if token:
+        invalidate_token(token)
+    return Response({"ok": True})
+
+
+@api_view(["GET"])
+def admin_me(request):
+    user = require_dashboard_user(request)
+    return Response({"user": DashboardUserSerializer(user).data})
+
+
+class DashboardUserViewSet(viewsets.ModelViewSet):
+    serializer_class = DashboardUserSerializer
+    queryset = DashboardUser.objects.all().order_by("username")
+
+    def list(self, request, *args, **kwargs):
+        require_dashboard_user(request, routes=["config"])
+        return super().list(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        require_dashboard_user(request, routes=["config"])
+        return super().retrieve(request, *args, **kwargs)
+
+    def create(self, request, *args, **kwargs):
+        require_dashboard_user(request, routes=["config"])
+        return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        require_dashboard_user(request, routes=["config"])
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        require_dashboard_user(request, routes=["config"])
+        return super().partial_update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        require_dashboard_user(request, routes=["config"])
+        return super().destroy(request, *args, **kwargs)

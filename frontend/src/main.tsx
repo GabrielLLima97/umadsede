@@ -16,7 +16,9 @@ const ItemsAdmin = lazy(() => import("./pages/ItemsAdmin"));
 const PaymentsAdmin = lazy(() => import("./pages/PaymentsAdmin"));
 const AdminVendas = lazy(() => import("./pages/AdminVendas"));
 const AdminEstoque = lazy(() => import("./pages/AdminEstoque"));
-const AdminRelatorio = lazy(() => import("./pages/AdminRelatorio"));
+const AdminDashboard = lazy(() => import("./pages/AdminRelatorio"));
+const AdminConfig = lazy(() => import("./pages/AdminConfig"));
+const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 
 const queryClient = new QueryClient();
 
@@ -38,16 +40,21 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               <Route path="/" element={<Navigate to="/cliente" />} />
               <Route path="/pedidos" element={<ClientOrder />} />
               <Route path="/cliente" element={<ClientOrder />} />
-              <Route path="/cozinha" element={<Cozinha />} />
-              <Route path="/tv" element={<TV />} />
+              <Route path="/admin/login" element={<AdminLogin />} />
+              <Route path="/cozinha" element={<Navigate to="/admin/cozinha" replace />} />
+              <Route path="/tv" element={<Navigate to="/admin/tv" replace />} />
               <Route path="/status/:id" element={<Status />} />
               <Route path="/cliente/pedidos" element={<MyOrders />} />
               <Route path="/admin" element={<AdminShell />}>
-                <Route path="itens" element={<ItemsAdmin />} />
-                <Route path="pagamentos" element={<PaymentsAdmin />} />
+                <Route index element={<Navigate to="/admin/dashboard" replace />} />
+                <Route path="dashboard" element={<AdminDashboard />} />
                 <Route path="vendas" element={<AdminVendas />} />
+                <Route path="cozinha" element={<Cozinha />} />
+                <Route path="tv" element={<TV />} />
+                <Route path="itens" element={<ItemsAdmin />} />
                 <Route path="estoque" element={<AdminEstoque />} />
-                <Route path="relatorio" element={<AdminRelatorio />} />
+                <Route path="pagamentos" element={<PaymentsAdmin />} />
+                <Route path="config" element={<AdminConfig />} />
               </Route>
             </Route>
           </Routes>

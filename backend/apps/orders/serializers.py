@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import Item, Pedido, PedidoItem, CategoryOrder
+from .models import Item, Pedido, PedidoItem, CategoryOrder, DashboardUser
+from .auth_utils import hash_password
 
 class ItemSerializer(serializers.ModelSerializer):
     estoque_disponivel = serializers.SerializerMethodField()
@@ -67,3 +68,44 @@ class CategoryOrderSerializer(serializers.ModelSerializer):
             return int(value)
         except (TypeError, ValueError):
             raise serializers.ValidationError("Ordem deve ser um número inteiro")
+
+
+class DashboardUserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+
+    class Meta:
+        model = DashboardUser
+        fields = [
+            "id",
+            "username",
+            "name",
+            "allowed_routes",
+            "is_active",
+            "created_at",
+            "updated_at",
+            "password",
+        ]
+        read_only_fields = ["created_at", "updated_at"]
+
+    def validate_allowed_routes(self, value):
+        if value is None:
+            return []
+        if not isinstance(value, (list, tuple)):
+            raise serializers.ValidationError("Informe uma lista de rotas permitidas.")
+        return list({str(v) for v in value})
+
+    def create(self, validated_data):
+        password = validated_data.pop("password", None)
+        if not password:
+            raise serializers.ValidationError({"password": "Senha obrigatória"})
+        validated_data["password_hash"] = hash_password(password)
+        return DashboardUser.objects.create(**validated_data)
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop("password", None)
+        if password:
+            instance.password_hash = hash_password(password)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
