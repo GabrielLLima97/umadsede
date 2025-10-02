@@ -20,6 +20,23 @@ const DEFAULT_CATEGORY_PRIORITY: Record<string, number> = {
 };
 
 export default function ClientOrder(){
+  const headerActions = (
+    <Link
+      to="/cliente/pedidos"
+      className="inline-flex items-center gap-2 rounded-full border border-brand-primary bg-white px-4 py-2 text-sm font-semibold text-brand-primary shadow-sm hover:bg-brand-primary hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/60"
+    >
+      <span className="flex h-4 w-4 items-center justify-center">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+          <path d="M7 4h10l.8 2.4A4 4 0 0 1 22 10v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8a4 4 0 0 1 4.2-3.6L7 4Z" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M9 14h6" strokeLinecap="round" />
+          <circle cx="9" cy="18" r=".8" fill="currentColor" />
+          <circle cx="15" cy="18" r=".8" fill="currentColor" />
+        </svg>
+      </span>
+      Meus pedidos
+    </Link>
+  );
+
   const [sp] = useSearchParams();
   const highlightOrderId = sp.get("pedido");
   const [activeCat,setActiveCat]=useState<string>("");
@@ -148,7 +165,7 @@ export default function ClientOrder(){
   }, []);
 
   return (
-    <ClientOrderLayout>
+    <ClientOrderLayout rightSlot={headerActions}>
       {highlightOrderId && (
         <OrderBanner id={highlightOrderId} />
       )}
@@ -166,23 +183,6 @@ export default function ClientOrder(){
           </button>
         </div>
       )}
-
-      <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-        <Link
-          to="/cliente/pedidos"
-          className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow hover:bg-brand-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/60"
-        >
-          <span className="flex h-4 w-4 items-center justify-center">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-              <path d="M7 4h10l.8 2.4A4 4 0 0 1 22 10v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8a4 4 0 0 1 4.2-3.6L7 4Z" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M9 14h6" strokeLinecap="round" />
-              <circle cx="9" cy="18" r=".8" fill="currentColor" />
-              <circle cx="15" cy="18" r=".8" fill="currentColor" />
-            </svg>
-          </span>
-          Meus pedidos
-        </Link>
-      </div>
 
       <CategoryChips categories={categories} active={activeCat} onActive={setActiveCat} />
 
