@@ -9,7 +9,7 @@ type Props = {
 };
 
 export default function CategoryChips({ categories, active, onActive }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const scrollerRef = useRef<HTMLDivElement>(null);
   const [showAll, setShowAll] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
 
@@ -54,12 +54,16 @@ export default function CategoryChips({ categories, active, onActive }: Props) {
 
   const cats = categories ?? [];
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const target = container.querySelector<HTMLButtonElement>(`button[data-cat="${slugify(active)}"]`);
-    if (target) {
-      target.scrollIntoView({ inline: "center", block: "nearest", behavior: reduceMotion ? "auto" : "smooth" });
-    }
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const target = scroller.querySelector<HTMLButtonElement>(`button[data-cat="${slugify(active)}"]`);
+    if (!target) return;
+    const targetRect = target.getBoundingClientRect();
+    const scrollerRect = scroller.getBoundingClientRect();
+    const centered = targetRect.left - scrollerRect.left + scroller.scrollLeft - scrollerRect.width / 2 + targetRect.width / 2;
+    const maxScroll = scroller.scrollWidth - scrollerRect.width;
+    const nextLeft = Math.max(0, Math.min(maxScroll, centered));
+    scroller.scrollTo({ left: nextLeft, behavior: reduceMotion ? "auto" : "smooth" });
   }, [active, categories, reduceMotion]);
 
   const allCategories = useMemo(() => cats.map((c) => ({
@@ -69,13 +73,16 @@ export default function CategoryChips({ categories, active, onActive }: Props) {
 
   return (
     <>
-      <div
-        ref={containerRef}
-        className="md:sticky md:top-16 z-30 bg-white/95 backdrop-blur transition-shadow shadow-sm"
-      >
-        <div className="flex gap-2 overflow-x-auto px-4 py-3 scroll-smooth snap-x snap-mandatory" role="tablist" aria-label="Categorias de produtos">
+      <div className="md:sticky md:top-16 z-30 bg-white/95 backdrop-blur transition-shadow shadow-sm">
+        <div
+          ref={scrollerRef}
+          className="flex gap-2 overflow-x-auto px-4 py-3 scroll-smooth snap-x snap-mandatory"
+          role="tablist"
+          aria-label="Categorias de produtos"
+        >
           {cats.map((c) => {
             const isActive = active === c;
+            const icon = iconForCategory(c);
             return (
               <button
                 key={c}
@@ -91,7 +98,15 @@ export default function CategoryChips({ categories, active, onActive }: Props) {
                 role="tab"
                 aria-selected={isActive}
               >
-                <span aria-hidden className="text-base">{iconForCategory(c)}</span>
+                <span
+                  aria-hidden
+                  className={classNames(
+                    "text-base transition-colors",
+                    isActive ? "text-white" : "text-slate-500 group-hover:text-brand-primary"
+                  )}
+                >
+                  {icon}
+                </span>
                 <span>{c}</span>
               </button>
             );
@@ -100,10 +115,10 @@ export default function CategoryChips({ categories, active, onActive }: Props) {
             <button
               type="button"
               onClick={() => setShowAll(true)}
-              className="snap-start inline-flex min-h-[48px] items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:border-brand-primary/60 hover:text-brand-primary"
+              className="group snap-start inline-flex min-h-[48px] items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:border-brand-primary/60 hover:text-brand-primary"
               aria-label="Abrir todas as categorias"
             >
-              <span aria-hidden className="text-base">🗂️</span>
+              <span aria-hidden className="text-base text-slate-500 group-hover:text-brand-primary">{genericIcon}</span>
               Todas
             </button>
           )}
@@ -155,14 +170,16 @@ export default function CategoryChips({ categories, active, onActive }: Props) {
                           scrollTo(label);
                         }}
                         className={classNames(
-                          "flex min-h-[56px] items-center gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition-colors",
+                          "group flex min-h-[56px] items-center gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition-colors",
                           isActive
                             ? "border-slate-900 bg-slate-900 text-white"
                             : "border-slate-200 bg-white text-slate-700 hover:border-brand-primary/60 hover:text-brand-primary"
                         )}
                         role="listitem"
                       >
-                        <span aria-hidden className="text-lg">{icon}</span>
+                        <span aria-hidden className="text-lg text-slate-500 group-hover:text-brand-primary">
+                          {icon}
+                        </span>
                         <span className="truncate">{label}</span>
                       </button>
                     );
@@ -182,12 +199,77 @@ export const deslugify = (s: string) => s.replace(/-/g, " ").replace(/\b\w/g, (m
 
 const iconForCategory = (value: string) => {
   const key = value.toLowerCase();
-  if (key.includes("hamb")) return "🍔";
-  if (key.includes("veg")) return "🥗";
-  if (key.includes("drink") || key.includes("beb")) return "🥤";
-  if (key.includes("combo")) return "🍱";
-  if (key.includes("sobrem")) return "🍰";
-  if (key.includes("lanche")) return "🥪";
-  if (key.includes("porção") || key.includes("snack")) return "🍟";
-  return "✨";
+  if (key.includes("hamb")) return burgerIcon;
+  if (key.includes("frango")) return chickenIcon;
+  if (key.includes("drink") || key.includes("beb")) return drinkIcon;
+  if (key.includes("combo")) return comboIcon;
+  if (key.includes("sobrem")) return dessertIcon;
+  if (key.includes("lanche")) return snackIcon;
+  if (key.includes("veg")) return leafIcon;
+  return genericIcon;
 };
+
+const iconBase = "h-4 w-4";
+
+const burgerIcon = (
+  <svg className={iconBase} viewBox="0 0 24 24" fill="none" stroke="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M5 9c0-2.2 3.1-4 7-4s7 1.8 7 4v1H5V9Z" fill="currentColor" opacity={0.95} />
+    <rect x="4" y="11" width="16" height="3" rx="1.5" fill="currentColor" opacity={0.9} />
+    <path d="M5 15h14v1c0 1.7-3.1 3-7 3s-7-1.3-7-3v-1Z" fill="currentColor" opacity={0.85} />
+  </svg>
+);
+
+const chickenIcon = (
+  <svg className={iconBase} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M14 5a5 5 0 0 0-5 5c0 1 .3 1.9.8 2.7l-2 2a2 2 0 1 0 2.8 2.8l.4-.4a1.5 1.5 0 0 0 2.1 2.1l.4-.4a2 2 0 1 0 2.8-2.8l2-2a5 5 0 0 0 2.7.8 5 5 0 1 0-5-5c0 .5.1 1 .3 1.4l-2.1 2.1A4 4 0 0 1 14 5Z"
+      fill="currentColor"
+      fillRule="evenodd"
+      clipRule="evenodd"
+    />
+  </svg>
+);
+
+const drinkIcon = (
+  <svg className={iconBase} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M6 6h12l-1.2 11.6A3.8 3.8 0 0 1 13 21h-2a3.8 3.8 0 0 1-3.8-3.4L6 6Z" fill="currentColor" opacity={0.85} />
+    <path d="M8 6 7.5 2.5h9L16 6H8Z" fill="currentColor" opacity={0.45} />
+    <path d="M7.2 10h9.6l-.3 3H7.5l-.3-3Z" fill="#ffffff" opacity={0.25} />
+  </svg>
+);
+
+const comboIcon = (
+  <svg className={iconBase} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="4" y="11" width="16" height="9" rx="2.5" fill="currentColor" opacity={0.85} />
+    <path d="M7 8.5C7 6.6 9.7 5 12 5s5 1.6 5 3.5V11H7V8.5Z" fill="currentColor" opacity={0.55} />
+    <path d="M9 6.5 10 3h4l1 3.5H9Z" fill="currentColor" opacity={0.35} />
+  </svg>
+);
+
+const dessertIcon = (
+  <svg className={iconBase} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M6 10c0-2.8 2.7-5 6-5s6 2.2 6 5l-1.5 6.5a3 3 0 0 1-2.9 2.3h-4.2a3 3 0 0 1-2.9-2.3L6 10Z" fill="currentColor" opacity={0.85} />
+    <path d="M10.5 6.5c0-1 .8-1.8 1.8-1.8s1.7.8 1.7 1.8-.8 1.7-1.7 1.7-1.8-.8-1.8-1.7Z" fill="currentColor" opacity={0.5} />
+  </svg>
+);
+
+const snackIcon = (
+  <svg className={iconBase} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="5" y="7" width="14" height="10" rx="3" fill="currentColor" opacity={0.85} />
+    <path d="M7 9.5h10" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" opacity={0.4} />
+    <path d="M7 12.5h10" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" opacity={0.25} />
+  </svg>
+);
+
+const leafIcon = (
+  <svg className={iconBase} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M19 5c-5.5 0-10 4.5-10 10 0 1.7.4 3.3 1.2 4.7-2.8-.4-5.2-2.5-5.2-5.6 0-6.4 5.1-9.1 14-9.1Z" fill="currentColor" opacity={0.6} />
+    <path d="M9 15c2.3.2 4.6 1 6.5 2.4" stroke="#ffffff" strokeWidth="1.3" strokeLinecap="round" opacity={0.4} />
+  </svg>
+);
+
+const genericIcon = (
+  <svg className={iconBase} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="12" cy="12" r="8" fill="currentColor" opacity={0.4} />
+  </svg>
+);

@@ -66,31 +66,31 @@ const ProductCard: React.FC<Props> = ({ item, showExactStock = false, onDetails,
 
   return (
     <article
-      className={`rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden transition-shadow hover:shadow-lg focus-within:shadow-lg ${soldOut ? "opacity-90" : ""}`}
+      className={`flex gap-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-lg focus-within:shadow-lg ${soldOut ? "opacity-90" : ""}`}
       data-soldout={soldOut}
     >
-      <div className="relative aspect-[4/3] bg-slate-100">
+      <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-slate-100 md:h-28 md:w-28">
         {item.imagem_url ? (
           <img
             src={item.imagem_url}
             alt={item.nome}
             loading="lazy"
             decoding="async"
-            sizes="(max-width: 768px) 100vw, 33vw"
+            sizes="96px"
             className={imageClasses}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-xs text-slate-500">Sem imagem</div>
         )}
         {soldOut && (
-          <span className="absolute left-3 top-3 rounded-full bg-rose-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-rose-600 shadow">
+          <span className="absolute left-2 top-2 rounded-full bg-rose-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-rose-600 shadow">
             Esgotado
           </span>
         )}
       </div>
-      <div className="flex flex-col gap-3 p-4">
+      <div className="flex w-full flex-col gap-3">
         <div>
-          <h3 className="text-lg font-black text-slate-900 leading-tight">{item.nome}</h3>
+          <h3 className="text-lg font-black leading-tight text-slate-900">{item.nome}</h3>
           <p className="mt-1 text-base font-extrabold text-slate-900">{brl.format(Number(item.preco))}</p>
           {item.descricao && (
             <p className={descriptionClass}>{item.descricao}</p>
@@ -118,7 +118,7 @@ const ProductCard: React.FC<Props> = ({ item, showExactStock = false, onDetails,
           </button>
         )}
 
-        <div className="mt-auto flex items-center gap-3">
+        <div className="mt-auto flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -129,7 +129,7 @@ const ProductCard: React.FC<Props> = ({ item, showExactStock = false, onDetails,
             >
               −
             </button>
-            <div className="min-w-[56px] rounded-xl border border-slate-200 text-center font-extrabold py-2 select-none bg-white" aria-live="polite">
+            <div className="min-w-[56px] rounded-xl border border-slate-200 bg-white py-2 text-center font-extrabold" aria-live="polite">
               {qty}
             </div>
           </div>

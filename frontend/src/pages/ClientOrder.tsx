@@ -24,7 +24,6 @@ export default function ClientOrder(){
   const highlightOrderId = sp.get("pedido");
   const [activeCat,setActiveCat]=useState<string>("");
   const [dialog,setDialog]=useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
   const [cartOpen, setCartOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<any | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -76,10 +75,6 @@ export default function ClientOrder(){
     return () => window.removeEventListener("scroll", handler);
   }, []);
 
-  const onSearchChange = useCallback((value: string) => {
-    setSearchTerm(value);
-  }, []);
-
   // itens com paginação infinita + filtros
   const itemsQuery = useInfiniteQuery({
     queryKey: ["items"],
@@ -111,7 +106,6 @@ export default function ClientOrder(){
   } = itemsQuery;
   const items = (pages?.pages || []).flatMap((p:any)=> p.results || p) as any[];
 
-  const normalizedSearch = searchTerm.trim().toLowerCase();
   const filteredByCat = useMemo(()=>{
     const map: Record<string, any[]> = {};
     const ordered = [...(items||[])].sort((a:any, b:any)=>{
@@ -121,15 +115,11 @@ export default function ClientOrder(){
       return String(a?.nome || "").localeCompare(String(b?.nome || ""));
     });
     ordered.forEach((it:any)=>{
-      if (normalizedSearch) {
-        const hay = `${String(it.nome || "").toLowerCase()} ${String(it.descricao || "").toLowerCase()}`;
-        if (!hay.includes(normalizedSearch)) return;
-      }
       const c = it.categoria || "Outros";
       (map[c] ||= []).push(it);
     });
     return map;
-  },[items, normalizedSearch]);
+  },[items]);
 
   const handleFetchMore = useCallback(() => {
     setLoadError(false);
@@ -147,15 +137,6 @@ export default function ClientOrder(){
       : "Tente novamente em instantes."
     : "";
 
-  useEffect(() => {
-    if (!normalizedSearch) return;
-    const cats = categories || [];
-    const firstWithItems = cats.find((cat) => (filteredByCat[cat] || []).length > 0);
-    if (firstWithItems) {
-      setActiveCat(firstWithItems);
-    }
-  }, [normalizedSearch, filteredByCat, categories]);
-
   const handleOpenDetails = useCallback((item: any) => {
     setDetailItem(item);
     setDetailOpen(true);
@@ -168,19 +149,6 @@ export default function ClientOrder(){
 
   return (
     <ClientOrderLayout
-      centerSlot={
-        <label className="hidden md:flex w-full items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm text-slate-500 focus-within:ring-2 focus-within:ring-brand-primary/60">
-          <span className="font-semibold text-slate-400">Buscar</span>
-          <input
-            type="search"
-            value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Digite um prato ou ingrediente"
-            className="w-full bg-transparent text-slate-700 placeholder:text-slate-400 focus:outline-none"
-            aria-label="Buscar produtos"
-          />
-        </label>
-      }
       rightSlot={
         <button
           type="button"
@@ -209,20 +177,6 @@ export default function ClientOrder(){
           </button>
         </div>
       )}
-
-      <div className="md:hidden">
-        <label className="mt-3 flex w-full items-center gap-2 rounded-full bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-brand-primary">
-          <span className="text-sm font-semibold text-slate-500">Buscar</span>
-          <input
-            type="search"
-            value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Qual é o seu pedido de hoje?"
-            className="w-full bg-transparent text-base text-slate-700 placeholder:text-slate-400 focus:outline-none"
-            aria-label="Buscar produtos"
-          />
-        </label>
-      </div>
 
       <CategoryChips categories={categories} active={activeCat} onActive={setActiveCat} />
 
