@@ -72,9 +72,13 @@ export default function ClientOrder(){
   const filteredByCat = useMemo(()=>{
     const q = (query||"").toLowerCase();
     const map: Record<string, any[]> = {};
-    (items||[])
-      // somente itens com estoque disponível
-      .filter((it:any)=> (it.estoque_disponivel ?? 1) > 0)
+    const ordered = [...(items||[])].sort((a:any, b:any)=>{
+      const aSoldOut = (Number(a?.estoque_disponivel ?? 0) || 0) <= 0 ? 1 : 0;
+      const bSoldOut = (Number(b?.estoque_disponivel ?? 0) || 0) <= 0 ? 1 : 0;
+      if(aSoldOut !== bSoldOut) return aSoldOut - bSoldOut;
+      return String(a?.nome || "").localeCompare(String(b?.nome || ""));
+    });
+    ordered
       .filter((it:any)=> !q || it.nome.toLowerCase().includes(q) || (it.descricao||"").toLowerCase().includes(q))
       .forEach((it:any)=>{
         const c = it.categoria || "Outros";

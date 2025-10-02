@@ -33,9 +33,15 @@ export default function AdminVendas(){
     api.get("/items/").then(r=>{
       const data = r.data?.results || r.data || [];
       const arr = Array.isArray(data) ? data : [];
-      const filtered = arr.filter((it:any)=> (it.estoque_disponivel ?? 1) > 0);
-      setItems(filtered);
-      const uniq = Array.from(new Set(filtered.map((it:any)=> (it.categoria || "Outros") as string)));
+      const cleaned = arr.filter((it:any)=> it?.ativo !== false);
+      const ordered = [...cleaned].sort((a:any, b:any)=>{
+        const aSoldOut = (Number(a?.estoque_disponivel ?? 0) || 0) <= 0 ? 1 : 0;
+        const bSoldOut = (Number(b?.estoque_disponivel ?? 0) || 0) <= 0 ? 1 : 0;
+        if(aSoldOut !== bSoldOut) return aSoldOut - bSoldOut;
+        return String(a?.nome || "").localeCompare(String(b?.nome || ""));
+      });
+      setItems(ordered);
+      const uniq = Array.from(new Set(ordered.map((it:any)=> (it.categoria || "Outros") as string)));
       const desired = ["Hamburguer","Drink","Bebidas"];
       const score = (c:string)=>{
         const i = desired.findIndex(x=> x.toLowerCase() === c.toLowerCase());
