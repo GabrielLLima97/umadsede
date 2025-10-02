@@ -1,14 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import ClientOrderLayout from "../components/client/ClientOrderLayout";
 import CategoryChips, { slugify } from "../components/client/CategoryChips";
 import ProductCard from "../components/client/ProductCard";
 import CartSidebar from "../components/client/CartSidebar";
-import MobileBar from "../components/client/MobileBar";
-import CheckoutModal from "../components/client/CheckoutModal";
+import CartBottomSheet from "../components/client/CartBottomSheet";
+import ProductDetailSheet from "../components/client/ProductDetailSheet";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { api } from "../api";
 import { useOrders } from "../store/orders";
+import { useCartTotals } from "../store/cart";
+import CheckoutModal from "../components/client/CheckoutModal";
+import { brl } from "../utils/format";
 
 const DEFAULT_CATEGORY_PRIORITY: Record<string, number> = {
   hamburguer: 0,
@@ -21,6 +24,14 @@ export default function ClientOrder(){
   const highlightOrderId = sp.get("pedido");
   const [activeCat,setActiveCat]=useState<string>("");
   const [dialog,setDialog]=useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [cartOpen, setCartOpen] = useState(false);
+  const [detailItem, setDetailItem] = useState<any | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [compactView, setCompactView] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+
+  const totals = useCartTotals();
 
   // categorias
   const { data: rawCats } = useQuery({
@@ -54,15 +65,23 @@ export default function ClientOrder(){
     if(!activeCat && (categories?.length||0) > 0){
       setActiveCat(categories[0]);
     }
-  },[categories]);
+  },[categories, activeCat]);
+
+  useEffect(() => {
+    const handler = () => {
+      setCompactView(window.scrollY > 280);
+    };
+    handler();
+    window.addEventListener("scroll", handler, { passive: true });
+    return () => window.removeEventListener("scroll", handler);
+  }, []);
+
+  const onSearchChange = useCallback((value: string) => {
+    setSearchTerm(value);
+  }, []);
 
   // itens com paginação infinita + filtros
-  const {
-    data: pages,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useInfiniteQuery({
+  const itemsQuery = useInfiniteQuery({
     queryKey: ["items"],
     queryFn: async ({ pageParam }) => {
       const params: any = { limit: 20 };
@@ -78,9 +97,21 @@ export default function ClientOrder(){
       return off ? Number(off) : undefined;
     },
     initialPageParam: 0,
+    retry: 2,
   });
+  const {
+    data: pages,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isError,
+    error,
+    refetch,
+    isLoading,
+  } = itemsQuery;
   const items = (pages?.pages || []).flatMap((p:any)=> p.results || p) as any[];
 
+  const normalizedSearch = searchTerm.trim().toLowerCase();
   const filteredByCat = useMemo(()=>{
     const map: Record<string, any[]> = {};
     const ordered = [...(items||[])].sort((a:any, b:any)=>{
@@ -90,27 +121,136 @@ export default function ClientOrder(){
       return String(a?.nome || "").localeCompare(String(b?.nome || ""));
     });
     ordered.forEach((it:any)=>{
+      if (normalizedSearch) {
+        const hay = `${String(it.nome || "").toLowerCase()} ${String(it.descricao || "").toLowerCase()}`;
+        if (!hay.includes(normalizedSearch)) return;
+      }
       const c = it.categoria || "Outros";
       (map[c] ||= []).push(it);
     });
     return map;
-  },[items]);
+  },[items, normalizedSearch]);
+
+  const handleFetchMore = useCallback(() => {
+    setLoadError(false);
+    fetchNextPage().catch(() => setLoadError(true));
+  }, [fetchNextPage]);
+
+  const handleRetry = useCallback(() => {
+    setLoadError(false);
+    refetch();
+  }, [refetch]);
+
+  const networkMessage = isError
+    ? error instanceof Error
+      ? error.message
+      : "Tente novamente em instantes."
+    : "";
+
+  useEffect(() => {
+    if (!normalizedSearch) return;
+    const cats = categories || [];
+    const firstWithItems = cats.find((cat) => (filteredByCat[cat] || []).length > 0);
+    if (firstWithItems) {
+      setActiveCat(firstWithItems);
+    }
+  }, [normalizedSearch, filteredByCat, categories]);
+
+  const handleOpenDetails = useCallback((item: any) => {
+    setDetailItem(item);
+    setDetailOpen(true);
+  }, []);
+
+  const handleCloseDetails = useCallback(() => {
+    setDetailOpen(false);
+    setTimeout(() => setDetailItem(null), 200);
+  }, []);
 
   return (
-    <ClientOrderLayout>
+    <ClientOrderLayout
+      centerSlot={
+        <label className="hidden md:flex w-full items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm text-slate-500 focus-within:ring-2 focus-within:ring-brand-primary/60">
+          <span className="font-semibold text-slate-400">Buscar</span>
+          <input
+            type="search"
+            value={searchTerm}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Digite um prato ou ingrediente"
+            className="w-full bg-transparent text-slate-700 placeholder:text-slate-400 focus:outline-none"
+            aria-label="Buscar produtos"
+          />
+        </label>
+      }
+      rightSlot={
+        <button
+          type="button"
+          onClick={() => setCartOpen(true)}
+          className="btn btn-primary md:hidden min-h-[48px]"
+          aria-label="Abrir resumo do carrinho"
+        >
+          Seu pedido • {brl.format(totals.total)}
+        </button>
+      }
+    >
       {highlightOrderId && (
         <OrderBanner id={highlightOrderId} />
       )}
+
+      {isError && (
+        <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <div className="font-semibold">Não conseguimos carregar o cardápio agora.</div>
+          <p className="mt-1 text-rose-700/80">{networkMessage}</p>
+          <button
+            type="button"
+            className="btn btn-ghost mt-3"
+            onClick={handleRetry}
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
+
+      <div className="md:hidden">
+        <label className="mt-3 flex w-full items-center gap-2 rounded-full bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-brand-primary">
+          <span className="text-sm font-semibold text-slate-500">Buscar</span>
+          <input
+            type="search"
+            value={searchTerm}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Qual é o seu pedido de hoje?"
+            className="w-full bg-transparent text-base text-slate-700 placeholder:text-slate-400 focus:outline-none"
+            aria-label="Buscar produtos"
+          />
+        </label>
+      </div>
+
       <CategoryChips categories={categories} active={activeCat} onActive={setActiveCat} />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
         <div className="md:col-span-2 flex flex-col gap-6">
+          {isLoading && (
+            <div className="space-y-4">
+              {[...Array(4)].map((_, idx) => (
+                <div key={idx} className="animate-pulse space-y-3 rounded-3xl border border-slate-200 bg-white p-4">
+                  <div className="h-40 rounded-2xl bg-slate-200" />
+                  <div className="h-4 w-2/3 rounded-full bg-slate-200" />
+                  <div className="h-4 w-1/3 rounded-full bg-slate-200" />
+                  <div className="h-3 w-1/2 rounded-full bg-slate-100" />
+                </div>
+              ))}
+            </div>
+          )}
           {(categories||[]).map(cat => (
             <section key={cat} id={`cat-${slugify(cat)}`} className="scroll-mt-[120px]">
               <div className="text-lg font-black mb-2">{cat}</div>
               <div className="flex flex-col gap-3">
                 {(filteredByCat[cat]||[]).map((it:any)=> (
-                  <ProductCard key={it.id} item={it} />
+                  <ProductCard
+                    key={it.id}
+                    item={it}
+                    compact={compactView}
+                    onDetails={handleOpenDetails}
+                  />
                 ))}
                 {(!filteredByCat[cat] || filteredByCat[cat].length===0) && (
                   <div className="text-slate-500">Nenhum item nesta categoria.</div>
@@ -120,7 +260,20 @@ export default function ClientOrder(){
           ))}
           {hasNextPage && (
             <div className="flex justify-center">
-              <button className="btn btn-ghost" onClick={()=>fetchNextPage()} disabled={isFetchingNextPage} aria-label="Carregar mais">{isFetchingNextPage?"Carregando...":"Carregar mais"}</button>
+              <button
+                className="btn btn-ghost"
+                onClick={handleFetchMore}
+                disabled={isFetchingNextPage}
+                aria-label="Carregar mais"
+              >
+                {isFetchingNextPage ? "Carregando..." : "Carregar mais"}
+              </button>
+            </div>
+          )}
+          {loadError && (
+            <div className="mt-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">
+              Não foi possível carregar mais itens agora.
+              <button type="button" className="btn btn-ghost ml-2" onClick={handleFetchMore}>Tentar novamente</button>
             </div>
           )}
         </div>
@@ -129,8 +282,26 @@ export default function ClientOrder(){
         </div>
       </div>
 
-      <MobileBar onCheckout={()=>setDialog(true)} />
+      <div className="pointer-events-none md:hidden">
+        <div className="fixed inset-x-0 bottom-4 px-4">
+          <button
+            type="button"
+            onClick={() => setCartOpen(true)}
+            className="pointer-events-auto flex w-full items-center justify-between rounded-full bg-brand-primary px-5 py-4 text-white shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 active:scale-[0.99]"
+          >
+            <span className="text-sm font-semibold uppercase tracking-wide">Seu pedido</span>
+            <span className="text-lg font-black">{brl.format(totals.total)}</span>
+          </button>
+        </div>
+      </div>
+
+      <CartBottomSheet
+        open={cartOpen}
+        onClose={() => setCartOpen(false)}
+        onCheckout={() => setDialog(true)}
+      />
       <CheckoutModal open={dialog} onClose={()=>setDialog(false)} />
+      <ProductDetailSheet item={detailItem} open={detailOpen} onClose={handleCloseDetails} />
     </ClientOrderLayout>
   );
 }

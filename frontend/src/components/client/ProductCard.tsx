@@ -1,10 +1,12 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { brl } from "../../utils/format";
 import { useCart } from "../../store/cart";
 
 type Props = {
   item: any;
   showExactStock?: boolean;
+  onDetails?: (item: any) => void;
+  compact?: boolean;
 };
 
 const parseNumber = (value: any) => {
@@ -12,11 +14,13 @@ const parseNumber = (value: any) => {
   return Number.isFinite(num) ? num : 0;
 };
 
-const ProductCard: React.FC<Props> = ({ item, showExactStock = false }) => {
+const ProductCard: React.FC<Props> = ({ item, showExactStock = false, onDetails, compact = false }) => {
   const add = useCart((s) => s.add);
   const remove = useCart((s) => s.remove);
   const cartItem = useCart((s) => s.items.find((x) => x.id === item.id));
   const qty = cartItem?.qtd || 0;
+  const [justAdded, setJustAdded] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const estoqueDisponivel = useMemo(() => {
     const raw = item?.estoque_disponivel ?? item?.estoque_inicial ?? 0;
@@ -28,9 +32,25 @@ const ProductCard: React.FC<Props> = ({ item, showExactStock = false }) => {
   const canAdd = !soldOut && remaining > 0;
   const canRemove = qty > 0;
 
+  useEffect(() => () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+  }, []);
+
   const addOne = useCallback(() => {
     if (!canAdd) return;
     add({ id: item.id, sku: item.sku, nome: item.nome, preco: Number(item.preco), categoria: item.categoria });
+    setJustAdded(true);
+    try {
+      if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+        navigator.vibrate(15);
+      }
+    } catch {
+      /* noop: vibração não suportada */
+    }
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => setJustAdded(false), 420);
   }, [add, item, canAdd]);
 
   const remOne = useCallback(() => {
@@ -38,62 +58,103 @@ const ProductCard: React.FC<Props> = ({ item, showExactStock = false }) => {
     remove(item.id, 1);
   }, [remove, item, canRemove]);
 
-  const imageClass = soldOut
-    ? "h-24 w-24 rounded-xl object-cover filter grayscale contrast-75 opacity-60"
-    : "h-24 w-24 rounded-xl object-cover";
+  const imageClasses = soldOut
+    ? "h-full w-full object-cover filter grayscale contrast-75 opacity-60"
+    : "h-full w-full object-cover";
+  const showDetailsButton = !!item.descricao && (compact || String(item.descricao).length > 96);
+  const descriptionClass = compact ? "mt-2 text-sm text-slate-600 line-clamp-1" : "mt-2 text-sm text-slate-600 line-clamp-2";
 
   return (
-    <div className={`flex gap-3 rounded-2xl border border-slate-200 p-3 ${soldOut ? "bg-slate-100" : "bg-white"}`}>
-      {item.imagem_url ? (
-        <img src={item.imagem_url} loading="lazy" alt={item.nome} width={96} height={96} className={imageClass} />
-      ) : (
-        <div aria-label="sem imagem" className={`${imageClass} flex items-center justify-center bg-slate-100 border border-slate-200`}>
-          <span className="text-xs text-slate-500">Sem imagem</span>
-        </div>
-      )}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <div className="font-extrabold text-slate-900 truncate" title={item.nome}>{item.nome}</div>
-          {soldOut && (
-            <span className="shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-rose-700">Esgotado</span>
+    <article
+      className={`rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden transition-shadow hover:shadow-lg focus-within:shadow-lg ${soldOut ? "opacity-90" : ""}`}
+      data-soldout={soldOut}
+    >
+      <div className="relative aspect-[4/3] bg-slate-100">
+        {item.imagem_url ? (
+          <img
+            src={item.imagem_url}
+            alt={item.nome}
+            loading="lazy"
+            decoding="async"
+            sizes="(max-width: 768px) 100vw, 33vw"
+            className={imageClasses}
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-xs text-slate-500">Sem imagem</div>
+        )}
+        {soldOut && (
+          <span className="absolute left-3 top-3 rounded-full bg-rose-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-rose-600 shadow">
+            Esgotado
+          </span>
+        )}
+      </div>
+      <div className="flex flex-col gap-3 p-4">
+        <div>
+          <h3 className="text-lg font-black text-slate-900 leading-tight">{item.nome}</h3>
+          <p className="mt-1 text-base font-extrabold text-slate-900">{brl.format(Number(item.preco))}</p>
+          {item.descricao && (
+            <p className={descriptionClass}>{item.descricao}</p>
+          )}
+          {!soldOut && estoqueDisponivel > 0 && (
+            <p className="mt-1 text-xs font-semibold text-emerald-700">
+              {showExactStock ? `Disponíveis: ${estoqueDisponivel}` : remaining <= 3 ? "Últimas unidades" : "Restam algumas unidades"}
+            </p>
+          )}
+          {soldOut && qty === 0 && (
+            <p className="mt-1 text-xs font-semibold text-rose-600">Este produto está indisponível no momento.</p>
+          )}
+          {soldOut && qty > 0 && (
+            <p className="mt-1 text-xs font-semibold text-rose-600">Sem estoque adicional. Você já adicionou o limite disponível.</p>
           )}
         </div>
-        <div className="font-extrabold">{brl.format(Number(item.preco))}</div>
-        {item.descricao && <div className="text-slate-600 text-sm line-clamp-2">{item.descricao}</div>}
-        {!soldOut && estoqueDisponivel > 0 && (
-          <div className="mt-1 text-xs font-semibold text-emerald-700">
-            {showExactStock ? `Disponíveis: ${estoqueDisponivel}` : "Restam algumas unidades"}
-          </div>
-        )}
-        {soldOut && qty === 0 && (
-          <div className="mt-1 text-xs font-semibold text-rose-600">Este produto está indisponível no momento.</div>
-        )}
-        {soldOut && qty > 0 && (
-          <div className="mt-1 text-xs font-semibold text-rose-600">Sem estoque adicional. Ajuste a quantidade se necessário.</div>
-        )}
-        <div className="mt-3 grid grid-cols-[1fr,80px,1fr] gap-2 items-center">
+
+        {showDetailsButton && (
           <button
-            aria-label="diminuir"
-            onClick={remOne}
-            disabled={!canRemove}
-            className="btn disabled:opacity-40 disabled:cursor-not-allowed bg-white text-brand-primary border-brand-primary hover:bg-brand-cream"
+            type="button"
+            className="self-start rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:border-brand-primary/60 hover:text-brand-primary"
+            onClick={() => onDetails?.(item)}
           >
-            ➖
+            Detalhes
           </button>
-          <div className="rounded-xl border border-slate-200 text-center font-extrabold py-2 select-none bg-white">
-            {qty}
+        )}
+
+        <div className="mt-auto flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-label="Diminuir quantidade"
+              onClick={remOne}
+              disabled={!canRemove}
+              className="btn bg-white text-brand-primary border-brand-primary hover:bg-brand-cream disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 focus-visible:ring-2 focus-visible:ring-brand-primary/50 min-h-[48px] min-w-[48px]"
+            >
+              −
+            </button>
+            <div className="min-w-[56px] rounded-xl border border-slate-200 text-center font-extrabold py-2 select-none bg-white" aria-live="polite">
+              {qty}
+            </div>
           </div>
-          <button
-            aria-label="aumentar"
-            onClick={addOne}
-            disabled={!canAdd}
-            className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            ➕
-          </button>
+          {!soldOut && (
+            <button
+              type="button"
+              aria-label="Adicionar ao carrinho"
+              onClick={addOne}
+              disabled={!canAdd}
+              className={`btn btn-primary flex-1 min-h-[48px] active:scale-[0.98] transition-transform disabled:opacity-40 disabled:cursor-not-allowed ${justAdded ? "ring-2 ring-white ring-offset-2 ring-offset-brand-primary" : ""}`}
+              aria-pressed={qty > 0}
+              data-state={justAdded ? "added" : qty > 0 ? "selected" : "default"}
+            >
+              {qty > 0 ? "Adicionar mais" : "Adicionar"}
+              {justAdded && (
+                <span className="sr-only" role="status">Produto adicionado ao carrinho</span>
+              )}
+            </button>
+          )}
         </div>
+        {soldOut && !qty && (
+          <div className="text-xs font-semibold text-slate-500">Volte em instantes — estamos repondo o estoque.</div>
+        )}
       </div>
-    </div>
+    </article>
   );
 };
 
