@@ -5,7 +5,8 @@ from django.utils import timezone
 from django.db import transaction
 from decimal import Decimal
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Sum, F, Value, IntegerField
+from django.db.models.functions import Coalesce, Greatest
 from .models import Item, Pedido
 from .serializers import ItemSerializer, PedidoSerializer
 from .services.mercadopago import criar_preferencia, processar_webhook, criar_pagamento_pix
@@ -20,6 +21,21 @@ class ItemView(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Item.objects.all().order_by("categoria", "nome")
+        vendas_confirmadas = Coalesce(
+            Sum(
+                "pedidoitem__qtd",
+                filter=Q(pedidoitem__pedido__paid_at__isnull=False)
+            ),
+            Value(0, output_field=IntegerField()),
+        )
+        qs = qs.annotate(
+            vendidos_confirmados=vendas_confirmadas,
+        ).annotate(
+            estoque_disponivel_calc=Greatest(
+                Value(0, output_field=IntegerField()),
+                F("estoque_inicial") - F("vendidos_confirmados"),
+            )
+        )
         all_param = self.request.query_params.get("all")
         # Para operações de detalhe/alteração, não filtrar por ativo;
         # filtra apenas na listagem quando 'all' não foi informado.

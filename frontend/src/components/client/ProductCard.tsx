@@ -62,7 +62,7 @@ const ProductCard: React.FC<Props> = ({ item, showExactStock = false }) => {
         {item.descricao && <div className="text-slate-600 text-sm line-clamp-2">{item.descricao}</div>}
         {!soldOut && estoqueDisponivel > 0 && (
           <div className="mt-1 text-xs font-semibold text-emerald-700">
-            {showExactStock ? `Disponíveis: ${remaining}` : "Restam algumas unidades"}
+            {showExactStock ? `Disponíveis: ${estoqueDisponivel}` : "Restam algumas unidades"}
           </div>
         )}
         {soldOut && qty === 0 && (
