@@ -9,6 +9,7 @@ import CheckoutModal from "../components/client/CheckoutModal";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { api } from "../api";
 import { debounce } from "../utils/format";
+import { useOrders } from "../store/orders";
 
 export default function ClientOrder(){
   const [sp] = useSearchParams();
@@ -24,16 +25,29 @@ export default function ClientOrder(){
     queryKey: ["categories"],
     queryFn: async ()=> (await api.get("/categories")).data as string[],
   });
+  const { data: categoryOrderData } = useQuery({
+    queryKey: ["category-order"],
+    queryFn: async ()=> (await api.get("/category-order/"))?.data,
+  });
   const categories = useMemo(()=>{
     const cats = (rawCats||[]).filter(Boolean);
-    const order = ["Hamburguer","Drink","Bebidas"];
+    const orderEntries = Array.isArray(categoryOrderData?.results)
+      ? categoryOrderData.results
+      : Array.isArray(categoryOrderData)
+        ? categoryOrderData
+        : [];
+    const map: Record<string, number> = {};
+    orderEntries.forEach((co: any)=>{
+      if(!co) return;
+      const key = String(co.nome || "").toLowerCase();
+      if(key) map[key] = Number(co.ordem ?? 0);
+    });
     const score = (c:string)=>{
-      const i = order.findIndex(x=> x.toLowerCase() === (c||"").toLowerCase());
-      return i===-1 ? 999 : i;
+      const key = (c || "Outros").toLowerCase();
+      return map[key] ?? DEFAULT_CATEGORY_PRIORITY[key] ?? 999;
     };
-    const sorted = cats.sort((a,b)=> score(a)-score(b) || a.localeCompare(b));
-    return sorted;
-  },[rawCats]);
+    return [...cats].sort((a,b)=> score(a)-score(b) || a.localeCompare(b));
+  },[rawCats, categoryOrderData]);
   useEffect(()=>{
     if(!activeCat && (categories?.length||0) > 0){
       setActiveCat(categories[0]);
@@ -159,4 +173,3 @@ function OrderBanner({ id }: { id: string }){
     </div>
   );
 }
-import { useOrders } from "../store/orders";
