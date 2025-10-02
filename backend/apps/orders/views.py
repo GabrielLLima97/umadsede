@@ -4,23 +4,31 @@ from rest_framework.response import Response
 from django.utils import timezone
 from django.db import transaction
 from decimal import Decimal
-from django.db import transaction
-from django.db.models import Q, Sum, F, Value, IntegerField
+from django.db.models import Q, Sum, F, Value, IntegerField, Case, When
 from django.db.models.functions import Coalesce, Greatest
-from .models import Item, Pedido
-from .serializers import ItemSerializer, PedidoSerializer
+from .models import Item, Pedido, CategoryOrder
+from .serializers import ItemSerializer, PedidoSerializer, CategoryOrderSerializer
 from .services.mercadopago import criar_preferencia, processar_webhook, criar_pagamento_pix
-from .models import Pedido
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
-from decimal import Decimal
 
 class ItemView(viewsets.ModelViewSet):
     serializer_class = ItemSerializer
     permission_classes = [permissions.AllowAny]
 
     def get_queryset(self):
-        qs = Item.objects.all().order_by("categoria", "nome")
+        qs = Item.objects.all()
+        all_param = self.request.query_params.get("all")
+        # Para operações de detalhe/alteração, não filtrar por ativo;
+        # filtra apenas na listagem quando 'all' não foi informado.
+        if self.action == "list" and not all_param:
+            qs = qs.filter(ativo=True)
+        q = (self.request.query_params.get("q") or "").strip()
+        if q:
+            qs = qs.filter(Q(nome__icontains=q) | Q(descricao__icontains=q) | Q(categoria__icontains=q))
+        cat = (self.request.query_params.get("category") or "").strip()
+        if cat:
+            qs = qs.filter(categoria=cat)
         vendas_confirmadas = Coalesce(
             Sum(
                 "pedidoitem__qtd",
@@ -36,17 +44,21 @@ class ItemView(viewsets.ModelViewSet):
                 F("estoque_inicial") - F("vendidos_confirmados"),
             )
         )
-        all_param = self.request.query_params.get("all")
-        # Para operações de detalhe/alteração, não filtrar por ativo;
-        # filtra apenas na listagem quando 'all' não foi informado.
-        if self.action == "list" and not all_param:
-            qs = qs.filter(ativo=True)
-        q = (self.request.query_params.get("q") or "").strip()
-        if q:
-            qs = qs.filter(Q(nome__icontains=q) | Q(descricao__icontains=q) | Q(categoria__icontains=q))
-        cat = (self.request.query_params.get("category") or "").strip()
-        if cat:
-            qs = qs.filter(categoria=cat)
+
+        orders = list(CategoryOrder.objects.all())
+        if orders:
+            whens = [
+                When(categoria__iexact=cat.nome, then=Value(cat.ordem))
+                for cat in orders
+            ]
+            categoria_ordem = Case(
+                *whens,
+                default=Value(999, output_field=IntegerField()),
+                output_field=IntegerField(),
+            )
+            qs = qs.annotate(categoria_ordem=categoria_ordem).order_by("categoria_ordem", "categoria", "nome")
+        else:
+            qs = qs.order_by("categoria", "nome")
         return qs
 
     def get_object(self):
@@ -198,6 +210,23 @@ class PedidoView(viewsets.ModelViewSet):
             pass
         return Response({"ok": True, "de": de, "para": pedido.status})
 
+
+class CategoryOrderView(viewsets.ModelViewSet):
+    queryset = CategoryOrder.objects.all().order_by("ordem", "nome")
+    serializer_class = CategoryOrderSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def perform_create(self, serializer):
+        nome = serializer.validated_data.get("nome", "")
+        serializer.save(nome=str(nome).strip())
+
+    def perform_update(self, serializer):
+        data = serializer.validated_data
+        if "nome" in data and data["nome"] is not None:
+            serializer.save(nome=str(data["nome"]).strip())
+        else:
+            serializer.save()
+
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
 def criar_preference_view(request):
@@ -266,6 +295,14 @@ def create_pix_payment(request):
 @api_view(["GET"])
 @permission_classes([permissions.AllowAny])
 def categories_view(request):
-    cats = list(Item.objects.filter(ativo=True).values_list("categoria", flat=True).distinct().order_by("categoria"))
+    cats = list(Item.objects.filter(ativo=True).values_list("categoria", flat=True).distinct())
     cats = [c or "Outros" for c in cats]
+    order_map = {c.nome.lower(): c.ordem for c in CategoryOrder.objects.all()}
+    fallback = {"hamburguer": 0, "drink": 1, "bebidas": 2}
+
+    def score(cat: str):
+        key = (cat or "").lower()
+        return order_map.get(key, fallback.get(key, 999))
+
+    cats.sort(key=lambda c: (score(c), c.lower()))
     return Response(cats)

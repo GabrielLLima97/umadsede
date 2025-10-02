@@ -14,6 +14,12 @@ const parseBoolean = (value: unknown) => {
   return !!value;
 };
 
+const DEFAULT_CATEGORY_PRIORITY: Record<string, number> = {
+  hamburguer: 0,
+  drink: 1,
+  bebidas: 2,
+};
+
 export default function AdminVendas(){
   const [items, setItems] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -30,27 +36,39 @@ export default function AdminVendas(){
   const [successInfo,setSuccessInfo]=useState<{ id?: number; cliente?: string; pagamento?: string; embalagem?: boolean; total?: number }>({});
 
   useEffect(()=>{
-    api.get("/items/").then(r=>{
-      const data = r.data?.results || r.data || [];
+    const load = async ()=>{
+      const [itemsRes, orderRes] = await Promise.all([
+        api.get("/items/"),
+        api.get("/category-order/"),
+      ]);
+      const data = itemsRes.data?.results || itemsRes.data || [];
       const arr = Array.isArray(data) ? data : [];
       const cleaned = arr.filter((it:any)=> it?.ativo !== false);
-      const ordered = [...cleaned].sort((a:any, b:any)=>{
+      const orderedItems = [...cleaned].sort((a:any, b:any)=>{
         const aSoldOut = (Number(a?.estoque_disponivel ?? 0) || 0) <= 0 ? 1 : 0;
         const bSoldOut = (Number(b?.estoque_disponivel ?? 0) || 0) <= 0 ? 1 : 0;
         if(aSoldOut !== bSoldOut) return aSoldOut - bSoldOut;
         return String(a?.nome || "").localeCompare(String(b?.nome || ""));
       });
-      setItems(ordered);
-      const uniq = Array.from(new Set(ordered.map((it:any)=> (it.categoria || "Outros") as string)));
-      const desired = ["Hamburguer","Drink","Bebidas"];
+      setItems(orderedItems);
+
+      const ordersData = orderRes.data?.results || orderRes.data || [];
+      const map: Record<string, number> = {};
+      (Array.isArray(ordersData) ? ordersData : []).forEach((co: any)=>{
+        if(!co) return;
+        const key = String(co.nome || "").toLowerCase();
+        if(key) map[key] = Number(co.ordem ?? 0);
+      });
+      const uniq = Array.from(new Set(orderedItems.map((it:any)=> (it.categoria || "Outros") as string)));
       const score = (c:string)=>{
-        const i = desired.findIndex(x=> x.toLowerCase() === c.toLowerCase());
-        return i===-1 ? 999 : i;
+        const key = (c || "Outros").toLowerCase();
+        return map[key] ?? DEFAULT_CATEGORY_PRIORITY[key] ?? 999;
       };
       const cats = uniq.sort((a,b)=> score(a)-score(b) || a.localeCompare(b));
       setCategories(cats);
-      if(!activeCat && cats.length>0) setActiveCat(cats[0]);
-    });
+      if(cats.length>0) setActiveCat(prev => prev || cats[0]);
+    };
+    load();
   },[]);
 
   const filteredByCat = useMemo(()=>{

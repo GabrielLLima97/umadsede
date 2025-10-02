@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Item, Pedido, PedidoItem
+from .models import Item, Pedido, PedidoItem, CategoryOrder
 
 class ItemSerializer(serializers.ModelSerializer):
     estoque_disponivel = serializers.SerializerMethodField()
@@ -49,3 +49,21 @@ class PedidoSerializer(serializers.ModelSerializer):
             normalized = value.strip().lower()
             return normalized in {"1", "true", "t", "sim", "yes"}
         return bool(value)
+
+
+class CategoryOrderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CategoryOrder
+        fields = "__all__"
+
+    def validate_nome(self, value):
+        value = (value or "").strip()
+        if not value:
+            raise serializers.ValidationError("Nome é obrigatório")
+        return value
+
+    def validate_ordem(self, value):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            raise serializers.ValidationError("Ordem deve ser um número inteiro")

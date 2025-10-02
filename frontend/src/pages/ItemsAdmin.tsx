@@ -14,6 +14,18 @@ type Item = {
   vendidos: number;
 };
 
+type CategoryOrder = {
+  id: number;
+  nome: string;
+  ordem: number;
+};
+
+const DEFAULT_CATEGORY_PRIORITY: Record<string, number> = {
+  hamburguer: 0,
+  drink: 1,
+  bebidas: 2,
+};
+
 const emptyItem: Item = {
   sku: 0,
   nome: "",
@@ -33,11 +45,25 @@ export default function ItemsAdmin(){
   const [loading,setLoading]=useState(false);
   const [q,setQ]=useState("");
   const [catFilter,setCatFilter]=useState("");
+  const [categoryOrders,setCategoryOrders] = useState<CategoryOrder[]>([]);
+  const [orderDraft,setOrderDraft] = useState<Record<string,string>>({});
+  const [savingCategory,setSavingCategory] = useState<string|null>(null);
+
+  const loadCategoryOrders = async ()=>{
+    const r = await api.get("/category-order/");
+    const data = r.data?.results || r.data || [];
+    setCategoryOrders(Array.isArray(data) ? data : []);
+  };
 
   const carregar = async ()=>{
-    const r = await api.get("/items/?all=1");
-    const data = r.data?.results || r.data || [];
-    setItems(Array.isArray(data) ? data : []);
+    const [ri, rc] = await Promise.all([
+      api.get("/items/?all=1"),
+      api.get("/category-order/"),
+    ]);
+    const dataItems = ri.data?.results || ri.data || [];
+    setItems(Array.isArray(dataItems) ? dataItems : []);
+    const dataCat = rc.data?.results || rc.data || [];
+    setCategoryOrders(Array.isArray(dataCat) ? dataCat : []);
   };
 
   useEffect(()=>{ carregar(); },[]);
@@ -88,18 +114,108 @@ export default function ItemsAdmin(){
     await carregar();
   };
 
-  const categories = useMemo(()=> Array.from(new Set(items.map(i=> i.categoria||"Outros"))).sort(), [items]);
+  const handleOrderChange = (nome: string, valor: string)=>{
+    setOrderDraft(prev=> ({ ...prev, [nome]: valor }));
+  };
+
+  const saveCategoryOrder = async (nome: string)=>{
+    const key = nome.toLowerCase();
+    const current = orderDraft[nome] ?? (orderMap[key] !== undefined ? String(orderMap[key]) : "");
+    if(current === ""){
+      alert("Informe um número para definir a ordem.");
+      return;
+    }
+    const ordem = Number(current);
+    if(!Number.isFinite(ordem)){
+      alert("A ordem precisa ser um número válido.");
+      return;
+    }
+    setSavingCategory(nome);
+    try{
+      const existing = categoryOrders.find(co => (co?.nome || "").toLowerCase() === key);
+      if(existing){
+        await api.patch(`/category-order/${existing.id}/`, { ordem });
+      } else {
+        await api.post("/category-order/", { nome, ordem });
+      }
+      setOrderDraft(prev=> {
+        const next = { ...prev };
+        delete next[nome];
+        return next;
+      });
+      await loadCategoryOrders();
+    } catch(e:any){
+      const detail = e?.response?.data?.detail || JSON.stringify(e?.response?.data || {});
+      alert(`Não foi possível salvar a ordem: ${detail}`);
+    } finally {
+      setSavingCategory(null);
+    }
+  };
+
+  const clearCategoryOrder = async (nome: string)=>{
+    const key = nome.toLowerCase();
+    const existing = categoryOrders.find(co => (co?.nome || "").toLowerCase() === key);
+    setSavingCategory(nome);
+    try{
+      setOrderDraft(prev=> {
+        const next = { ...prev };
+        delete next[nome];
+        return next;
+      });
+      if(existing){
+        await api.delete(`/category-order/${existing.id}/`);
+        await loadCategoryOrders();
+      }
+    } catch(e:any){
+      const detail = e?.response?.data?.detail || JSON.stringify(e?.response?.data || {});
+      alert(`Não foi possível limpar a ordem: ${detail}`);
+    } finally {
+      setSavingCategory(null);
+    }
+  };
+
+  const orderMap = useMemo(()=>{
+    const map: Record<string, number> = {};
+    categoryOrders.forEach(co => {
+      const key = (co.nome || "").toLowerCase();
+      if (key) map[key] = Number(co.ordem ?? 0);
+    });
+    return map;
+  }, [categoryOrders]);
+
+  const categories = useMemo(()=> {
+    const uniqSet = new Set<string>();
+    items.forEach(i => uniqSet.add(i.categoria || "Outros"));
+    categoryOrders.forEach(co => {
+      const nome = co?.nome ? String(co.nome) : "";
+      if(nome) uniqSet.add(nome);
+    });
+    const uniq = Array.from(uniqSet);
+    const sorted = uniq.sort((a,b)=>{
+      const aKey = (a || "Outros").toLowerCase();
+      const bKey = (b || "Outros").toLowerCase();
+      const aScore = orderMap[aKey] ?? DEFAULT_CATEGORY_PRIORITY[aKey] ?? 999;
+      const bScore = orderMap[bKey] ?? DEFAULT_CATEGORY_PRIORITY[bKey] ?? 999;
+      return aScore - bScore || a.localeCompare(b);
+    });
+    return sorted;
+  }, [items, orderMap, categoryOrders]);
   const sorted = useMemo(()=>{
     const filtered = items.filter(it=>
       (!q || it.nome.toLowerCase().includes(q.toLowerCase()) || String(it.sku).includes(q)) &&
       (!catFilter || (it.categoria||"Outros")===catFilter)
     );
     return filtered.sort((a:any,b:any)=>{
+      const aKey = (a.categoria || "Outros").toLowerCase();
+      const bKey = (b.categoria || "Outros").toLowerCase();
+      const scoreA = orderMap[aKey] ?? DEFAULT_CATEGORY_PRIORITY[aKey] ?? 999;
+      const scoreB = orderMap[bKey] ?? DEFAULT_CATEGORY_PRIORITY[bKey] ?? 999;
+      if(scoreA !== scoreB) return scoreA - scoreB;
       const c = String(a.categoria||"").localeCompare(String(b.categoria||""));
       if(c!==0) return c;
       return String(a.nome||"").localeCompare(String(b.nome||""));
     });
-  },[items,q,catFilter]);
+  },[items,q,catFilter, orderMap]);
 
   const F = form;
   return (
@@ -160,6 +276,52 @@ export default function ItemsAdmin(){
               <button className="btn btn-primary" disabled={loading} onClick={salvarEdicao}>Salvar edição</button>
               <button className="btn btn-ghost" onClick={cancelarEdicao}>Cancelar</button>
             </>
+          )}
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="font-black mb-2">Ordem das categorias</div>
+        <div className="text-sm text-slate-600 mb-3">Defina a sequência em que as categorias aparecem nas páginas de venda (cliente e caixa). Números menores aparecem primeiro.</div>
+        <div className="flex flex-col gap-2">
+          {categories.map(cat=> {
+            const key = (cat || "Outros").toLowerCase();
+            const rawDraft = orderDraft.hasOwnProperty(cat) ? orderDraft[cat] : undefined;
+            const current = rawDraft !== undefined ? rawDraft : (orderMap[key] !== undefined ? String(orderMap[key]) : "");
+            const saving = savingCategory === cat;
+            const hasCustom = orderMap[key] !== undefined || rawDraft !== undefined;
+            return (
+              <div key={cat} className="flex flex-wrap items-center gap-2">
+                <div className="flex-1 min-w-[160px] font-bold">{cat}</div>
+                <input
+                  type="number"
+                  className="input w-28"
+                  value={current}
+                  onChange={e=>handleOrderChange(cat, e.target.value)}
+                  placeholder="Ordem"
+                  aria-label={`Ordem da categoria ${cat}`}
+                />
+                <button
+                  type="button"
+                  className={`btn btn-primary ${saving?"loading":""}`}
+                  onClick={()=>saveCategoryOrder(cat)}
+                  disabled={saving}
+                >
+                  Salvar
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={()=>clearCategoryOrder(cat)}
+                  disabled={saving || !hasCustom}
+                >
+                  Limpar
+                </button>
+              </div>
+            );
+          })}
+          {categories.length === 0 && (
+            <div className="text-sm text-slate-500">Nenhuma categoria cadastrada no momento.</div>
           )}
         </div>
       </div>

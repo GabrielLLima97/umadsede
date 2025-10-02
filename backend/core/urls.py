@@ -2,11 +2,12 @@ from django.contrib import admin
 from django.urls import path, include
 from django.http import JsonResponse
 from rest_framework.routers import DefaultRouter
-from apps.orders.views import ItemView, PedidoView, criar_preference_view, webhook_mp, sync_payment, categories_view, create_pix_payment
+from apps.orders.views import ItemView, PedidoView, criar_preference_view, webhook_mp, sync_payment, categories_view, create_pix_payment, CategoryOrderView
 
 router = DefaultRouter()
 router.register("items", ItemView, basename="items")
 router.register("orders", PedidoView, basename="orders")
+router.register("category-order", CategoryOrderView, basename="category-order")
 
 urlpatterns = [
     path("admin/", admin.site.urls),

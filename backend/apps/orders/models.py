@@ -16,6 +16,17 @@ class Item(models.Model):
     def estoque_disponivel(self):
         return max(self.estoque_inicial - self.vendidos, 0)
 
+
+class CategoryOrder(models.Model):
+    nome = models.CharField(max_length=120, unique=True)
+    ordem = models.IntegerField(default=100)
+
+    class Meta:
+        ordering = ["ordem", "nome"]
+
+    def __str__(self):
+        return f"{self.nome} ({self.ordem})"
+
 class Pedido(models.Model):
     STATUS = [
         ("aguardando pagamento","aguardando pagamento"),

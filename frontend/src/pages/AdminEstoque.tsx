@@ -9,21 +9,37 @@ type Item = {
   vendidos: number;
 };
 
+const DEFAULT_CATEGORY_PRIORITY: Record<string, number> = {
+  hamburguer: 0,
+  drink: 1,
+  bebidas: 2,
+};
+
 export default function AdminEstoque(){
   const [items,setItems]=useState<Item[]>([]);
   const [orders,setOrders]=useState<any[]>([]);
   const [loading,setLoading]=useState(true);
+  const [categoryOrderMap,setCategoryOrderMap] = useState<Record<string, number>>({});
   const carregar = async ()=>{
     setLoading(true);
     try{
-      const [ri, ro] = await Promise.all([
+      const [ri, ro, rc] = await Promise.all([
         api.get("/items/?all=1&limit=1000"),
         api.get("/orders/?limit=1000"),
+        api.get("/category-order/"),
       ]);
       const arr = (ri.data?.results || ri.data || []) as Item[];
       setItems(Array.isArray(arr)?arr:[]);
       const ord = (ro.data?.results || ro.data || []) as any[];
       setOrders(Array.isArray(ord)?ord:[]);
+      const cats = rc.data?.results || rc.data || [];
+      const map: Record<string, number> = {};
+      (Array.isArray(cats)?cats:[]).forEach((co:any)=>{
+        if(!co) return;
+        const key = String(co.nome || "").toLowerCase();
+        if(key) map[key] = Number(co.ordem ?? 0);
+      });
+      setCategoryOrderMap(map);
     } finally{ setLoading(false); }
   };
   useEffect(()=>{ carregar(); },[]);
@@ -31,11 +47,13 @@ export default function AdminEstoque(){
   const groups = useMemo(()=>{
     const map: Record<string, Item[]> = {};
     items.forEach(it=>{ const c = it.categoria || "Outros"; (map[c] ||= []).push(it); });
-    const desired = ["Hamburguer","Drink","Bebidas"];
-    const score = (c:string)=>{ const i = desired.findIndex(x=> x.toLowerCase()===c.toLowerCase()); return i===-1?999:i; };
+    const score = (c:string)=>{
+      const key = (c || "Outros").toLowerCase();
+      return categoryOrderMap[key] ?? DEFAULT_CATEGORY_PRIORITY[key] ?? 999;
+    };
     const cats = Object.keys(map).sort((a,b)=> score(a)-score(b) || a.localeCompare(b));
     return { cats, map };
-  },[items]);
+  },[items, categoryOrderMap]);
 
   const vendidosMap = useMemo(()=>{
     const paid = (orders||[]).filter((o:any)=> o.status==='pago' || !!o.paid_at);
