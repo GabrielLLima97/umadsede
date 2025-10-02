@@ -51,7 +51,7 @@ export default function CartSidebar({ onCheckout, sticky=true, showButton=true }
                 <span>Total</span>
                 <span>{brl.format(total)}</span>
               </div>
-              <div className="mt-2 text-xs text-slate-200/80">Tempo estimado de preparo: 20-30 minutos após pagamento.</div>
+              <div className="mt-2 text-xs text-slate-200/80">Tempo estimado de preparo: 3-7 minutos após pagamento.</div>
             </div>
             {showButton && (
               <button

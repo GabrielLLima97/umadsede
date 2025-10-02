@@ -137,7 +137,7 @@ export default function CartBottomSheet({ open, onClose, onCheckout }: Props) {
                   <div className="flex justify-between"><span>Subtotal</span><span>{brl.format(totals.subtotal)}</span></div>
                   <div className="flex justify-between"><span>Taxas</span><span>{brl.format(totals.taxas)}</span></div>
                   <div className="flex justify-between text-base text-slate-900 font-black"><span>Total</span><span>{brl.format(totals.total)}</span></div>
-                  <div className="text-xs text-slate-500">Tempo estimado de preparo: 20-30 minutos</div>
+                  <div className="text-xs text-slate-500">Tempo estimado de preparo: 3-7 minutos</div>
                 </div>
 
                 <div className="mt-5 flex flex-col gap-2">

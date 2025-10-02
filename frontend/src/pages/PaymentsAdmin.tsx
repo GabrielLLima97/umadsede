@@ -29,17 +29,31 @@ export default function PaymentsAdmin(){
 
   const sync = async (id:number)=>{
     setMsg("");
-    await api.post(`/payments/sync`, { pedido_id: id });
-    await carregar();
+    try {
+      await api.post(`/payments/sync`, { pedido_id: id });
+      setMsg(`Pedido #${id} sincronizado.`);
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || err?.message || 'Erro ao sincronizar pagamento.';
+      setMsg(`Falha ao sincronizar pedido #${id}: ${detail}`);
+    } finally {
+      await carregar();
+    }
   };
 
   const syncAll = async ()=>{
+    if(dados.length===0) return;
     setMsg("Sincronizando pagamentos visíveis...");
-    for(const p of dados){
-      try { await api.post(`/payments/sync`, { pedido_id: p.id }); } catch {}
+    let falhas = 0;
+    for (const p of dados) {
+      try {
+        await api.post(`/payments/sync`, { pedido_id: p.id });
+      } catch (err) {
+        falhas += 1;
+        console.warn(`Falha ao sincronizar pedido #${p.id}`, err);
+      }
     }
     await carregar();
-    setMsg("Concluído.");
+    setMsg(falhas ? `Sincronização concluída com ${falhas} falha(s).` : "Concluído.");
   };
 
   const abrirStatus = (id:number)=> window.open(`/status/${id}`, "_blank");

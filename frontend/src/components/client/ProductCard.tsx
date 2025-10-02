@@ -150,9 +150,6 @@ const ProductCard: React.FC<Props> = ({ item, showExactStock = false, onDetails,
             </button>
           )}
         </div>
-        {soldOut && !qty && (
-          <div className="text-xs font-semibold text-slate-500">Volte em instantes — estamos repondo o estoque.</div>
-        )}
       </div>
     </article>
   );

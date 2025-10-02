@@ -149,7 +149,11 @@ export default function CheckoutModal({ open, onClose }: Props) {
     if (!pedidoId) return;
     try {
       setVerifying(true);
-      await api.post(`/payments/sync`, { pedido_id: pedidoId }).catch(() => {});
+      try {
+        await api.post(`/payments/sync`, { pedido_id: pedidoId });
+      } catch (err) {
+        console.warn('Falha ao sincronizar pagamento manualmente', err);
+      }
       const r = await api.get(`/orders/${pedidoId}/`);
       if (r.data.status === "pago") {
         setStep(3);
@@ -160,7 +164,8 @@ export default function CheckoutModal({ open, onClose }: Props) {
         pushToast({ type: "info", message: "Pagamento ainda não confirmado. Tente novamente em instantes." });
       }
     } catch (e: any) {
-      pushToast({ type: "error", message: "Não foi possível verificar agora." });
+      const detail = e?.response?.data?.detail || e?.message;
+      pushToast({ type: "error", message: detail ? String(detail) : "Não foi possível verificar agora." });
     } finally {
       setVerifying(false);
     }
@@ -173,6 +178,13 @@ export default function CheckoutModal({ open, onClose }: Props) {
     const tick = async () => {
       if (!mounted) return;
       try {
+        if (tries % 3 === 0) {
+          try {
+            await api.post(`/payments/sync`, { pedido_id: pedidoId });
+          } catch (err) {
+            console.warn('Falha ao sincronizar pagamento automaticamente', err);
+          }
+        }
         const r = await api.get(`/orders/${pedidoId}/`);
         if (r.data?.status === "pago") {
           setStep(3);
@@ -181,9 +193,12 @@ export default function CheckoutModal({ open, onClose }: Props) {
           setOrderInfo((prev) => ({ ...prev, precisa_embalagem: parseBoolean(r.data?.precisa_embalagem) }));
           return;
         }
-        if (++tries < 45) setTimeout(tick, 4000);
-      } catch {
-        if (++tries < 45) setTimeout(tick, 6000);
+        tries += 1;
+        if (tries < 45) setTimeout(tick, 4000);
+      } catch (err) {
+        console.warn('Falha ao consultar status do pedido', err);
+        tries += 1;
+        if (tries < 45) setTimeout(tick, 6000);
       }
     };
     const onVis = () => {
@@ -213,7 +228,7 @@ export default function CheckoutModal({ open, onClose }: Props) {
         <span>Total</span>
         <span>{brl.format(total)}</span>
       </div>
-      <div className="text-xs text-slate-200/80">Tempo estimado de preparo: 20-30 minutos após confirmação.</div>
+      <div className="text-xs text-slate-200/80">Tempo estimado de preparo: 3-7 minutos após confirmação.</div>
     </div>
   );
 
