@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import ClientOrderLayout from "../components/client/ClientOrderLayout";
 import CategoryChips, { slugify } from "../components/client/CategoryChips";
@@ -8,17 +8,19 @@ import MobileBar from "../components/client/MobileBar";
 import CheckoutModal from "../components/client/CheckoutModal";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { api } from "../api";
-import { debounce } from "../utils/format";
 import { useOrders } from "../store/orders";
+
+const DEFAULT_CATEGORY_PRIORITY: Record<string, number> = {
+  hamburguer: 0,
+  drink: 1,
+  bebidas: 2,
+};
 
 export default function ClientOrder(){
   const [sp] = useSearchParams();
   const highlightOrderId = sp.get("pedido");
   const [activeCat,setActiveCat]=useState<string>("");
-  const [search,setSearch]=useState("");
   const [dialog,setDialog]=useState(false);
-  const [query,setQuery]=useState("");
-  const debounced = useCallback(debounce((v:string)=> setQuery(v), 300),[]);
 
   // categorias
   const { data: rawCats } = useQuery({
@@ -60,15 +62,11 @@ export default function ClientOrder(){
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-    status
   } = useInfiniteQuery({
-    // Busca apenas por texto (categorias servem como seções e âncoras)
-    queryKey: ["items", { q: query }],
+    queryKey: ["items"],
     queryFn: async ({ pageParam }) => {
       const params: any = { limit: 20 };
       if(pageParam) params.offset = pageParam;
-      if(query) params.q = query;
-      // Não filtrar por categoria no fetch; agrupamos por categoria no cliente
       const r = await api.get("/items/", { params });
       return r.data; // DRF: {count,next,previous,results}
     },
@@ -84,7 +82,6 @@ export default function ClientOrder(){
   const items = (pages?.pages || []).flatMap((p:any)=> p.results || p) as any[];
 
   const filteredByCat = useMemo(()=>{
-    const q = (query||"").toLowerCase();
     const map: Record<string, any[]> = {};
     const ordered = [...(items||[])].sort((a:any, b:any)=>{
       const aSoldOut = (Number(a?.estoque_disponivel ?? 0) || 0) <= 0 ? 1 : 0;
@@ -92,27 +89,18 @@ export default function ClientOrder(){
       if(aSoldOut !== bSoldOut) return aSoldOut - bSoldOut;
       return String(a?.nome || "").localeCompare(String(b?.nome || ""));
     });
-    ordered
-      .filter((it:any)=> !q || it.nome.toLowerCase().includes(q) || (it.descricao||"").toLowerCase().includes(q))
-      .forEach((it:any)=>{
-        const c = it.categoria || "Outros";
-        (map[c] ||= []).push(it);
-      });
+    ordered.forEach((it:any)=>{
+      const c = it.categoria || "Outros";
+      (map[c] ||= []).push(it);
+    });
     return map;
-  },[items, query]);
+  },[items]);
 
   return (
     <ClientOrderLayout>
       {highlightOrderId && (
         <OrderBanner id={highlightOrderId} />
       )}
-      <div className="sticky top-[96px] z-20 bg-white">
-        <div className="max-w-[1400px] mx-auto px-0 py-2 flex items-center gap-2 border-b border-slate-200">
-          <div className="flex-1">
-            <input aria-label="Buscar" placeholder="Buscar" className="input" onChange={(e)=>{ setSearch(e.target.value); debounced(e.target.value); }} />
-          </div>
-        </div>
-      </div>
       <CategoryChips categories={categories} active={activeCat} onActive={setActiveCat} />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">

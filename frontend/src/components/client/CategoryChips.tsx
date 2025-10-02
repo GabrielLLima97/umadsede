@@ -25,7 +25,7 @@ export default function CategoryChips({ categories, active, onActive }: Props) {
           onActive(name);
         }
       },
-      { rootMargin: "-64px 0px -60% 0px", threshold: [0, 0.5, 1] }
+      { rootMargin: "-120px 0px -60% 0px", threshold: [0, 0.5, 1] }
     );
     sections.forEach((s) => obs.observe(s));
     return () => obs.disconnect();
@@ -33,26 +33,46 @@ export default function CategoryChips({ categories, active, onActive }: Props) {
 
   const scrollTo = (c: string) => {
     const el = document.getElementById(`cat-${slugify(c)}`);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (el) {
+      const offset = 88;
+      const top = el.getBoundingClientRect().top + window.scrollY - offset;
+      window.scrollTo({ top, behavior: "smooth" });
+      onActive(c);
+    }
   };
 
   const cats = categories ?? [];
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const target = container.querySelector<HTMLButtonElement>(`button[data-cat="${slugify(active)}"]`);
+    if (target) {
+      target.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+    }
+  }, [active, categories]);
+
   return (
-    <div ref={containerRef} className="sticky top-[96px] z-20 bg-white border-b border-slate-200">
-      <div className="flex gap-2 overflow-x-auto px-2 py-2">
-        {cats.map((c) => (
-          <button
-            key={c}
-            aria-label={`Filtrar pela categoria ${c}`}
-            onClick={() => scrollTo(c)}
-            className={classNames(
-              "whitespace-nowrap rounded-full px-3 py-1 text-sm border",
-              active === c ? "bg-brand-primary text-white border-brand-primary" : "bg-white text-slate-700 border-slate-200"
-            )}
-          >
-            {c}
-          </button>
-        ))}
+    <div ref={containerRef} className="sticky top-[88px] z-30 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
+      <div className="flex gap-2 overflow-x-auto px-4 py-3">
+        {cats.map((c) => {
+          const isActive = active === c;
+          return (
+            <button
+              key={c}
+              data-cat={slugify(c)}
+              aria-label={`Filtrar pela categoria ${c}`}
+              onClick={() => scrollTo(c)}
+              className={classNames(
+                "transition-all whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold border",
+                isActive
+                  ? "bg-brand-primary text-white border-brand-primary shadow"
+                  : "bg-white text-slate-600 border-slate-200 hover:border-brand-primary/60 hover:text-brand-primary"
+              )}
+            >
+              {c}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
