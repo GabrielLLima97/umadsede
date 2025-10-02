@@ -45,7 +45,8 @@ export default function CategoryChips({ categories, active, onActive }: Props) {
   const scrollTo = (c: string) => {
     const el = document.getElementById(`cat-${slugify(c)}`);
     if (el) {
-      const offset = 72;
+      const prefersDesktop = window.innerWidth >= 768;
+      const offset = prefersDesktop ? 140 : 96;
       const top = el.getBoundingClientRect().top + window.scrollY - offset;
       window.scrollTo({ top, behavior: reduceMotion ? "auto" : "smooth" });
       onActive(c);
@@ -76,7 +77,7 @@ export default function CategoryChips({ categories, active, onActive }: Props) {
       <div className="md:sticky md:top-16 z-30 bg-white/95 backdrop-blur transition-shadow shadow-sm">
         <div
           ref={scrollerRef}
-          className="flex gap-2 overflow-x-auto px-4 py-3 scroll-smooth snap-x snap-mandatory"
+          className="flex gap-2 overflow-x-auto px-4 py-2.5 scroll-smooth snap-x snap-mandatory"
           role="tablist"
           aria-label="Categorias de produtos"
         >
@@ -90,7 +91,7 @@ export default function CategoryChips({ categories, active, onActive }: Props) {
                 aria-label={`Filtrar pela categoria ${c}`}
                 onClick={() => scrollTo(c)}
                 className={classNames(
-                  "group snap-start inline-flex min-h-[48px] items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-colors",
+                  "group snap-start inline-flex min-h-[44px] items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors whitespace-nowrap",
                   isActive
                     ? "bg-slate-900 text-white border-slate-900 shadow"
                     : "bg-white text-slate-600 border-slate-200 hover:border-brand-primary/60 hover:text-brand-primary"
@@ -115,7 +116,7 @@ export default function CategoryChips({ categories, active, onActive }: Props) {
             <button
               type="button"
               onClick={() => setShowAll(true)}
-              className="group snap-start inline-flex min-h-[48px] items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:border-brand-primary/60 hover:text-brand-primary"
+              className="group snap-start inline-flex min-h-[44px] items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-1.5 text-sm font-semibold text-slate-600 hover:border-brand-primary/60 hover:text-brand-primary"
               aria-label="Abrir todas as categorias"
             >
               <span aria-hidden className="text-base text-slate-500 group-hover:text-brand-primary">{genericIcon}</span>

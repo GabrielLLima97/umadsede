@@ -16,7 +16,7 @@ export default function ClientOrderLayout({ children, rightSlot }: Props) {
         <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between gap-3 px-4">
           <Link
             to="/cliente"
-            className="flex items-center gap-3 rounded-full px-2 py-1 transition hover:bg-slate-100"
+            className="flex items-center justify-center rounded-full px-2 py-1 transition hover:bg-slate-100"
             aria-label="Ir para página inicial do cliente"
           >
             <img
@@ -27,25 +27,11 @@ export default function ClientOrderLayout({ children, rightSlot }: Props) {
               decoding="async"
               sizes="(max-width: 768px) 140px, 180px"
             />
-            <div className="flex flex-col leading-tight">
-              <span className="text-sm font-bold uppercase tracking-[0.18em] text-brand-primary">
-                Umadsede
-              </span>
-              <span className="text-xs font-medium text-slate-600 sm:text-sm">Hamburgueria artesanal • pedidos digitais</span>
-            </div>
           </Link>
           <div className="flex items-center gap-2 md:gap-3">
             {rightSlot}
             {isOrders && (
               <Link to="/cliente" className="btn btn-primary min-h-[48px]">Fazer pedido</Link>
-            )}
-            {isClienteRoot && (
-              <Link
-                to="/cliente/pedidos"
-                className="btn btn-ghost min-h-[48px] border border-brand-primary text-brand-primary hover:bg-brand-primary/10 hover:text-brand-primary"
-              >
-                Meus pedidos
-              </Link>
             )}
             {!loc.pathname.startsWith("/cliente") && (
               <Link to="/cliente" className="btn btn-primary min-h-[48px]">Fazer pedido</Link>

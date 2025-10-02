@@ -148,18 +148,7 @@ export default function ClientOrder(){
   }, []);
 
   return (
-    <ClientOrderLayout
-      rightSlot={
-        <button
-          type="button"
-          onClick={() => setCartOpen(true)}
-          className="btn btn-primary md:hidden min-h-[48px]"
-          aria-label="Abrir resumo do carrinho"
-        >
-          Seu pedido • {brl.format(totals.total)}
-        </button>
-      }
-    >
+    <ClientOrderLayout>
       {highlightOrderId && (
         <OrderBanner id={highlightOrderId} />
       )}
@@ -177,6 +166,15 @@ export default function ClientOrder(){
           </button>
         </div>
       )}
+
+      <div className="mt-3 hidden justify-end md:flex">
+        <Link
+          to="/cliente/pedidos"
+          className="btn btn-ghost min-h-[44px] border border-slate-200 text-slate-700 hover:border-brand-primary/60 hover:text-brand-primary"
+        >
+          Meus pedidos
+        </Link>
+      </div>
 
       <CategoryChips categories={categories} active={activeCat} onActive={setActiveCat} />
 
@@ -236,18 +234,7 @@ export default function ClientOrder(){
         </div>
       </div>
 
-      <div className="pointer-events-none md:hidden">
-        <div className="fixed inset-x-0 bottom-4 px-4">
-          <button
-            type="button"
-            onClick={() => setCartOpen(true)}
-            className="pointer-events-auto flex w-full items-center justify-between rounded-full bg-brand-primary px-5 py-4 text-white shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 active:scale-[0.99]"
-          >
-            <span className="text-sm font-semibold uppercase tracking-wide">Seu pedido</span>
-            <span className="text-lg font-black">{brl.format(totals.total)}</span>
-          </button>
-        </div>
-      </div>
+      <CartFloatingButton total={totals.total} onClick={() => setCartOpen(true)} />
 
       <CartBottomSheet
         open={cartOpen}
@@ -257,6 +244,29 @@ export default function ClientOrder(){
       <CheckoutModal open={dialog} onClose={()=>setDialog(false)} />
       <ProductDetailSheet item={detailItem} open={detailOpen} onClose={handleCloseDetails} />
     </ClientOrderLayout>
+  );
+}
+
+function CartFloatingButton({ total, onClick }: { total: number; onClick: () => void }) {
+  return (
+    <div className="pointer-events-none md:hidden">
+      <button
+        type="button"
+        onClick={onClick}
+        className="pointer-events-auto fixed bottom-4 right-4 flex items-center gap-2 rounded-full bg-brand-primary px-5 py-3 text-white shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 active:scale-[0.99]"
+        aria-label="Abrir resumo do carrinho"
+      >
+        <span className="flex h-5 w-5 items-center justify-center">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+            <path d="M3 5h2l1 10h12l2-6H7" strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx="10" cy="19" r="1.5" />
+            <circle cx="17" cy="19" r="1.5" />
+          </svg>
+        </span>
+        <span className="text-sm font-semibold uppercase tracking-wide">Seu pedido</span>
+        <span className="text-base font-black">{brl.format(total)}</span>
+      </button>
+    </div>
   );
 }
 
