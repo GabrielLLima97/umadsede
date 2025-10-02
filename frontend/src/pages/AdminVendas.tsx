@@ -6,6 +6,14 @@ import ProductCard from "../components/client/ProductCard";
 import CartSidebar from "../components/client/CartSidebar";
 import CategoryChips, { slugify } from "../components/client/CategoryChips";
 
+const parseBoolean = (value: unknown) => {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return ["1","true","t","sim","yes"].includes(normalized);
+  }
+  return !!value;
+};
+
 export default function AdminVendas(){
   const [items, setItems] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -66,7 +74,9 @@ export default function AdminVendas(){
       const p = await api.post("/orders/", payload);
       await api.patch(`/orders/${p.data.id}/status/`, { status: "pago" });
       cart.clear();
-      setSuccessInfo({ id: p.data.id, cliente: nome||"Balcão", pagamento: metodo, embalagem: precisaEmbalagem, total });
+      const precisaFromResponse = p.data?.precisa_embalagem;
+      const precisaNormalizada = typeof precisaFromResponse === "undefined" ? precisaEmbalagem : parseBoolean(precisaFromResponse);
+      setSuccessInfo({ id: p.data.id, cliente: nome||"Balcão", pagamento: metodo, embalagem: precisaNormalizada, total });
       setConfirmOpen(false);
       setPrecisaEmbalagem(false);
     } catch(e:any){

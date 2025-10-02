@@ -1,5 +1,5 @@
 import { Dialog, Transition } from "@headlessui/react";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { maskWhatsapp, brl } from "../../utils/format";
 import { useToast } from "../../store/toast";
@@ -8,6 +8,14 @@ import { useOrders } from "../../store/orders";
 import { api } from "../../api";
 
 type Props = { open: boolean; onClose: ()=>void };
+
+const parseBoolean = (value: unknown) => {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return ["1","true","t","sim","yes"].includes(normalized);
+  }
+  return !!value;
+};
 
 export default function CheckoutModal({ open, onClose }: Props){
   const items = useCart(s=>s.items);
@@ -45,7 +53,9 @@ export default function CheckoutModal({ open, onClose }: Props){
       };
       const p = await api.post("/orders/", payload);
       setPedidoId(p.data.id);
-      setOrderInfo({ id: p.data.id, nome, total, precisa_embalagem: !!p.data?.precisa_embalagem || precisaEmbalagem });
+      const precisaFromResponse = p.data?.precisa_embalagem;
+      const precisaNormalizada = typeof precisaFromResponse === "undefined" ? precisaEmbalagem : parseBoolean(precisaFromResponse);
+      setOrderInfo({ id: p.data.id, nome, total, precisa_embalagem: precisaNormalizada });
       // Guarda referência do pedido para o histórico local
       try{
         addOrderRef({ id: p.data.id, createdAt: new Date().toISOString(), total, name: nome });
@@ -81,7 +91,7 @@ export default function CheckoutModal({ open, onClose }: Props){
         setStep(3);
         clear();
         setPrecisaEmbalagem(false);
-        setOrderInfo(prev => ({ ...prev, precisa_embalagem: !!r.data?.precisa_embalagem }));
+        setOrderInfo(prev => ({ ...prev, precisa_embalagem: parseBoolean(r.data?.precisa_embalagem) }));
       } else {
         pushToast({ type:'info', message:'Pagamento ainda não confirmado. Tente novamente em instantes.' });
       }
@@ -102,7 +112,7 @@ export default function CheckoutModal({ open, onClose }: Props){
           setStep(3);
           clear();
           setPrecisaEmbalagem(false);
-          setOrderInfo(prev => ({ ...prev, precisa_embalagem: !!r.data?.precisa_embalagem }));
+          setOrderInfo(prev => ({ ...prev, precisa_embalagem: parseBoolean(r.data?.precisa_embalagem) }));
           return;
         }
         if(++tries < 45) setTimeout(tick, 4000); // ~3min

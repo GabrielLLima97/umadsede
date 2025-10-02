@@ -9,6 +9,14 @@ export function elapsedInfo(ts:string, now:number){
   return { text: `${m}m ${s}s`, overSla: m >= 15 };
 }
 
+const parseBoolean = (value: unknown) => {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return ["1","true","t","sim","yes"].includes(normalized);
+  }
+  return !!value;
+};
+
 // Novo card de pedido, com agrupamento por categoria e navegação prev/next/seleção direta
 export function OrderCard({p, itemsMap, now, onPrev, onNext}:{
   p:any;
@@ -26,7 +34,7 @@ export function OrderCard({p, itemsMap, now, onPrev, onNext}:{
   });
   const cats = Object.keys(groups).sort((a,b)=> a.localeCompare(b));
   const { text, overSla } = elapsedInfo(p.created_at, now);
-  const precisaEmbalagem = !!p.precisa_embalagem;
+  const precisaEmbalagem = parseBoolean(p.precisa_embalagem);
   const embalagemColor = precisaEmbalagem ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600";
   const embalagemTexto = precisaEmbalagem ? "Com embalagem" : "Sem embalagem";
   return (

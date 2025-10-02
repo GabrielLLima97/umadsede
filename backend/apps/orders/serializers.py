@@ -1,6 +1,5 @@
 from rest_framework import serializers
 from .models import Item, Pedido, PedidoItem
-from decimal import Decimal
 
 class ItemSerializer(serializers.ModelSerializer):
     estoque_disponivel = serializers.IntegerField(read_only=True)
@@ -15,6 +14,8 @@ class PedidoItemSerializer(serializers.ModelSerializer):
 
 class PedidoSerializer(serializers.ModelSerializer):
     itens = PedidoItemSerializer(many=True, read_only=True)
+    precisa_embalagem = serializers.SerializerMethodField()
+
     class Meta:
         model = Pedido
         fields = [
@@ -23,3 +24,10 @@ class PedidoSerializer(serializers.ModelSerializer):
             "precisa_embalagem",
             "created_at","paid_at","itens"
         ]
+
+    def get_precisa_embalagem(self, obj):
+        value = getattr(obj, "precisa_embalagem", False)
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            return normalized in {"1", "true", "t", "sim", "yes"}
+        return bool(value)
