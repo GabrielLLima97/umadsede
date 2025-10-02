@@ -25,6 +25,9 @@ services:
     container_name: umadsede_backend
     restart: always
     env_file: .env
+    environment:
+      DASHBOARD_DEFAULT_ADMIN_USER: admin
+      DASHBOARD_DEFAULT_ADMIN_PASSWORD: admin123
     depends_on:
       db:
         condition: service_healthy
