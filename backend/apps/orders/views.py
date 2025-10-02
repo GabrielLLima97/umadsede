@@ -270,11 +270,19 @@ def sync_payment(request):
     pag = Pagamento.objects.filter(pedido_id=pedido_id).first()
     if not pag:
         return Response({"detail": "Pagamento não encontrado para este pedido"}, status=status.HTTP_404_NOT_FOUND)
-    # Força processamento usando preference_id/external_reference
-    result = processar_webhook({
-        "preference_id": pag.preference_id,
+    payment_identifier = pag.pedido.provider_payment_id or pag.preference_id
+    payload = {
         "external_reference": str(pedido_id),
-    })
+    }
+    if payment_identifier:
+        payload.update({
+            "type": "payment",
+            "data": {"id": payment_identifier},
+        })
+    # Fallback: mantém preference_id para compatibilidade com preferências antigas
+    if pag.preference_id:
+        payload["preference_id"] = pag.preference_id
+    result = processar_webhook(payload)
     return Response(result)
 
 @api_view(["POST"])

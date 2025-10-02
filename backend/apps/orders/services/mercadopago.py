@@ -110,6 +110,8 @@ def processar_webhook(payload: dict):
 
     # Resolve Pagamento/Pedido
     pag = None
+    payment_payload = None
+    mo = None
     if external_reference:
         try:
             pedido = Pedido.objects.filter(pk=int(external_reference)).first()
@@ -136,8 +138,14 @@ def processar_webhook(payload: dict):
                 presp = res.get("response") or {}
                 if presp.get("status") == "approved":
                     paid = True
+                    payment_payload = presp
                     pag.raw = {"webhook": payload, "payment": presp}
                     pag.status_detail = "approved"
+                    if presp.get("id"):
+                        pag.preference_id = str(presp.get("id"))
+                    if pag.pedido and presp.get("id"):
+                        pag.pedido.provider_payment_id = str(presp.get("id"))
+                        pag.pedido.save(update_fields=["provider_payment_id"])  
         except Exception:
             pass
 
@@ -150,7 +158,12 @@ def processar_webhook(payload: dict):
             pag.status_detail = "approved"
 
     if not paid:
-        pag.raw = pag.raw or {"webhook": payload}
+        if payment_payload:
+            pag.raw = {"webhook": payload, "payment": payment_payload}
+        elif mo is not None:
+            pag.raw = {"webhook": payload, "merchant_order": mo}
+        else:
+            pag.raw = pag.raw or {"webhook": payload}
         if not getattr(pag, "status_detail", None):
             pag.status_detail = "pending"
         pag.save(update_fields=["raw", "status_detail", "updated_at"])
@@ -186,7 +199,12 @@ def processar_webhook(payload: dict):
 
         pag.status = "approved"
         pag.status_detail = "approved"
-        pag.raw = {"webhook": payload, "merchant_order": mo}
+        final_raw = {"webhook": payload}
+        if payment_payload:
+            final_raw["payment"] = payment_payload
+        if mo is not None:
+            final_raw["merchant_order"] = mo
+        pag.raw = final_raw
         pag.pedido.status = "pago"
         if not pag.pedido.paid_at:
             pag.pedido.paid_at = timezone.now()
@@ -226,10 +244,10 @@ def criar_pagamento_pix(pedido_id: int, payer: dict | None = None):
         raise RuntimeError(resp)
     data = resp["response"]
     # mantém referência no pedido
-    Pagamento.objects.update_or_create(
+    result, _ = Pagamento.objects.update_or_create(
         pedido=pedido,
         defaults={
-            "preference_id": data.get("id"),
+            "preference_id": str(data.get("id")),
             "status": data.get("status") or "pending",
             "init_point": data.get("point_of_interaction", {})
                            .get("transaction_data", {})
@@ -237,4 +255,7 @@ def criar_pagamento_pix(pedido_id: int, payer: dict | None = None):
             "raw": data,
         },
     )
+    pedido.provider_payment_id = str(data.get("id"))
+    pedido.payment_link = result.init_point or pedido.payment_link
+    pedido.save(update_fields=["provider_payment_id", "payment_link"])
     return data
