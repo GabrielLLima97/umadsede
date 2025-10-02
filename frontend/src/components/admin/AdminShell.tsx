@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Outlet, useLocation, useNavigate, NavLink, Navigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../api";
@@ -21,47 +21,88 @@ type AdminMetricsResponse = {
   };
 };
 
+function createNavIcon(children: ReactNode) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-6 w-6"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  );
+}
+
 const NAV_ICONS: Record<string, JSX.Element> = {
-  dashboard: (
-    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor">
-      <path d="M11 3a8 8 0 1 0 0 18h2a8 8 0 0 0 0-18h-2Zm1 4a1 1 0 0 1 1 1v4.6l2.4 2.4a1 1 0 0 1-1.4 1.4l-2.8-2.8a1 1 0 0 1-.3-.7V8a1 1 0 0 1 1-1Z" />
-    </svg>
+  dashboard: createNavIcon(
+    <>
+      <circle cx="12" cy="12" r="7.25" />
+      <path d="M12 12l2.9-2.9" />
+      <path d="M8.6 15.4a4.1 4.1 0 0 1 6.8 0" />
+    </>
   ),
-  vendas: (
-    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor">
-      <path d="M5 4a1 1 0 0 0-1 1v2h1.28l2.7 9.47A3 3 0 0 0 10.87 18H18a1 1 0 0 0 0-2h-7.13a1 1 0 0 1-.96-.7L9.18 14H17a3 3 0 0 0 2.82-2l1.9-5.7A1 1 0 0 0 20.8 5H6.42L6.1 4.13A1 1 0 0 0 5 4Zm2 16a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm10 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
-    </svg>
+  vendas: createNavIcon(
+    <>
+      <rect x="5.25" y="8.5" width="13.5" height="11" rx="2.25" />
+      <path d="M8.5 8.5V7a3.5 3.5 0 0 1 7 0v1.5" />
+      <path d="M9.5 12.25h5" />
+    </>
   ),
-  cozinha: (
-    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor">
-      <path d="M5 3a1 1 0 0 0-1 1v8h2V4a1 1 0 0 0-1-1Zm4 0a1 1 0 0 0-1 1v8h2V4a1 1 0 0 0-1-1Zm4 0a1 1 0 0 0-1 1v8.5a2.5 2.5 0 1 0 3 2.45V4a1 1 0 0 0-1-1h-1Zm6.56 2.17a.75.75 0 0 0-.94-.5l-2.95.85a.75.75 0 0 0-.53.71v11.77a2 2 0 0 1-2 2H7.86a2 2 0 0 1-2-2V14H4v4.83a3 3 0 0 0 3 3h8.28a3 3 0 0 0 3-3V6.66l2.45-.7a.75.75 0 0 0 .5-.94Z" />
-    </svg>
+  cozinha: createNavIcon(
+    <>
+      <path d="M12 6.25a3.75 3.75 0 0 1 3.75 3.75v.5H8.25v-.5A3.75 3.75 0 0 1 12 6.25Z" />
+      <path d="M5.8 11h12.4l-.33 5.16a2.4 2.4 0 0 1-2.4 2.24H8.53a2.4 2.4 0 0 1-2.4-2.24L5.8 11Z" />
+      <path d="M12 6.25V5" />
+    </>
   ),
-  tv: (
-    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor">
-      <path d="M4 5a3 3 0 0 0-3 3v8a3 3 0 0 0 3 3h16a3 3 0 0 0 3-3V8a3 3 0 0 0-3-3H4Zm16 2a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h16Zm-9 14a1 1 0 0 0 0 2h2a1 1 0 1 0 0-2h-2Z" />
-    </svg>
+  tv: createNavIcon(
+    <>
+      <rect x="3.75" y="5.5" width="16.5" height="11.5" rx="2" />
+      <path d="M8 20h8" />
+    </>
   ),
-  itens: (
-    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor">
-      <path d="M5 5a2 2 0 0 0-2 2v2h18V7a2 2 0 0 0-2-2H5Zm16 6H3v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6Zm-7 2a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0v-2a1 1 0 0 1 1-1Z" />
-    </svg>
+  itens: createNavIcon(
+    <>
+      <circle cx="5.6" cy="7.5" r="1.2" />
+      <circle cx="5.6" cy="12" r="1.2" />
+      <circle cx="5.6" cy="16.5" r="1.2" />
+      <path d="M9 7.5h9.5" />
+      <path d="M9 12h9.5" />
+      <path d="M9 16.5h9.5" />
+    </>
   ),
-  estoque: (
-    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor">
-      <path d="M4.5 5h15a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm1 2v9h13V7h-13Zm3 11a1 1 0 0 0 0 2h7a1 1 0 1 0 0-2h-7Z" />
-    </svg>
+  estoque: createNavIcon(
+    <>
+      <rect x="4.5" y="6.75" width="15" height="10.5" rx="1.9" />
+      <path d="M4.5 11h15" />
+      <path d="M12 6.75v10.5" />
+    </>
   ),
-  pagamentos: (
-    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor">
-      <path d="M3 6a3 3 0 0 0-3 3v6a3 3 0 0 0 3 3h18a3 3 0 0 0 3-3V9a3 3 0 0 0-3-3H3Zm18 2a1 1 0 0 1 1 1v1H2V9a1 1 0 0 1 1-1h18Zm-4 6.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
-    </svg>
+  pagamentos: createNavIcon(
+    <>
+      <rect x="4.25" y="6.75" width="15.5" height="10.5" rx="1.8" />
+      <path d="M4.25 10.5h15.5" />
+      <path d="M8.75 15h3.5" />
+    </>
   ),
-  config: (
-    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor">
-      <path d="M11.66 3.05a1 1 0 0 1 .68 0l1.51.44a2 2 0 0 0 1.66-.35l1.1-.84a1 1 0 0 1 1.49.29l.94 1.63a2 2 0 0 0 1.38 1l1.51.33a1 1 0 0 1 .78.98l-.06 1.88a2 2 0 0 0 .57 1.43l1.15 1.23a1 1 0 0 1 0 1.37l-1.15 1.23a2 2 0 0 0-.57 1.43l.06 1.88a1 1 0 0 1-.78.98l-1.51.33a2 2 0 0 0-1.38 1l-.94 1.63a1 1 0 0 1-1.49.29l-1.1-.84a2 2 0 0 0-1.66-.35l-1.51.44a1 1 0 0 1-.68 0l-1.51-.44a2 2 0 0 0-1.66.35l-1.1.84a1 1 0 0 1-1.49-.29l-.94-1.63a2 2 0 0 0-1.38-1l-1.51-.33a1 1 0 0 1-.78-.98l.06-1.88a2 2 0 0 0-.57-1.43L.74 12.4a1 1 0 0 1 0-1.37L1.9 9.8a2 2 0 0 0 .57-1.43L2.41 6.5a1 1 0 0 1 .78-.98l1.51-.33a2 2 0 0 0 1.38-1L6.12 2.56a1 1 0 0 1 1.49-.29l1.1.84a2 2 0 0 0 1.66.35l1.29-.37Z" />
-      <circle cx="12" cy="12" r="3.5" fill="#fff" />
-    </svg>
+  config: createNavIcon(
+    <>
+      <circle cx="12" cy="12" r="3.2" />
+      <circle cx="12" cy="12" r="6.75" />
+      <line x1="12" y1="5" x2="12" y2="3.75" />
+      <line x1="12" y1="20.25" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="3.75" y2="12" />
+      <line x1="20.25" y1="12" x2="19" y2="12" />
+      <line x1="16.45" y1="7.55" x2="17.5" y2="6.5" />
+      <line x1="7.55" y1="16.45" x2="6.5" y2="17.5" />
+      <line x1="16.45" y1="16.45" x2="17.5" y2="17.5" />
+      <line x1="7.55" y1="7.55" x2="6.5" y2="6.5" />
+    </>
   ),
 };
 
@@ -188,23 +229,23 @@ function AdminSidebar({
         } ${collapsed ? "md:w-20" : "md:w-72"}`}
       >
         <div className="flex h-full w-full flex-col border-r border-white/30">
-          <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-8">
+          <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-8">
             {items.map((item) => (
               <NavLink
                 key={item.key}
                 to={item.path}
                 title={item.label}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+                  `flex w-full items-center gap-3 rounded-xl py-2 text-sm font-semibold transition-colors ${
                     isActive || currentPath.startsWith(item.path)
                       ? "bg-brand-primary/15 text-brand-primary"
                       : "text-slate-600 hover:bg-white/50"
-                  } ${collapsed ? "justify-center" : ""}`
+                  } ${collapsed ? "justify-center px-0" : "pl-2 pr-3"}`
                 }
                 onClick={onNavigate}
               >
-                <span>{item.icon}</span>
-                {!collapsed && <span>{item.label}</span>}
+                <span className="shrink-0">{item.icon}</span>
+                {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
               </NavLink>
             ))}
             {showConfig && (
@@ -212,26 +253,37 @@ function AdminSidebar({
                 to="/admin/config"
                 title="Configurações"
                 className={({ isActive }) =>
-                  `mt-4 flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+                  `mt-4 flex w-full items-center gap-3 rounded-xl py-2 text-sm font-semibold transition-colors ${
                     isActive ? "bg-brand-primary/15 text-brand-primary" : "text-slate-600 hover:bg-white/50"
-                  } ${collapsed ? "justify-center" : ""}`
+                  } ${collapsed ? "justify-center px-0" : "pl-2 pr-3"}`
                 }
                 onClick={onNavigate}
               >
-                <span>{NAV_ICONS.config}</span>
-                {!collapsed && <span>Configurações</span>}
+                <span className="shrink-0">{NAV_ICONS.config}</span>
+                {!collapsed && <span className="flex-1 truncate">Configurações</span>}
               </NavLink>
             )}
             <div className="border-t border-white/40 pt-4">
               <button
                 type="button"
-                className={`flex w-full items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white/60 ${
-                  collapsed ? "justify-center" : ""}`}
+                className={`flex w-full items-center gap-2 rounded-xl border border-slate-200 py-2 text-sm font-semibold text-slate-700 transition hover:bg-white/60 ${
+                  collapsed ? "justify-center px-0" : "pl-2 pr-3"}`}
                 onClick={onLogout}
                 title="Sair"
               >
-                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
-                  <path d="M13 3a1 1 0 0 1 1 1v3h-2V5H6v14h6v-2h2v3a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7Zm5.59 7.59a1 1 0 1 1 1.41 1.41l-2.3 2.29H11v-2h6.7l-.11.11ZM21 12l-3.3 3.3-1.4-1.4L17.6 13H11v-2h6.6l-1.3-1.3 1.4-1.41L21 12Z" />
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.6}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M13 5.5V4.75A2.75 2.75 0 0 1 15.75 2h3.5A2.75 2.75 0 0 1 22 4.75v14.5A2.75 2.75 0 0 1 19.25 22h-3.5A2.75 2.75 0 0 1 13 19.25V18.5" />
+                  <path d="M3 12h10" />
+                  <path d="m6.5 8.5-3.5 3.5 3.5 3.5" />
                 </svg>
                 {!collapsed && <span>Sair</span>}
               </button>
@@ -287,12 +339,32 @@ function AdminHeader({
           aria-label="Alternar menu"
         >
           {collapsed ? (
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
-              <path d="m9 12 5-5v10z" />
+            <svg
+              viewBox="0 0 24 24"
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.8}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M8.5 6.5 14 12l-5.5 5.5" />
+              <path d="M5 6.5 10.5 12 5 17.5" />
             </svg>
           ) : (
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
-              <path d="m15 12-5 5V7z" />
+            <svg
+              viewBox="0 0 24 24"
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.8}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M15.5 6.5 10 12l5.5 5.5" />
+              <path d="M19 6.5 13.5 12 19 17.5" />
             </svg>
           )}
         </button>
