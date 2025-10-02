@@ -4,6 +4,7 @@ import { useCart } from "../../store/cart";
 
 type Props = {
   item: any;
+  showExactStock?: boolean;
 };
 
 const parseNumber = (value: any) => {
@@ -11,7 +12,7 @@ const parseNumber = (value: any) => {
   return Number.isFinite(num) ? num : 0;
 };
 
-const ProductCard: React.FC<Props> = ({ item }) => {
+const ProductCard: React.FC<Props> = ({ item, showExactStock = false }) => {
   const add = useCart((s) => s.add);
   const remove = useCart((s) => s.remove);
   const cartItem = useCart((s) => s.items.find((x) => x.id === item.id));
@@ -60,7 +61,9 @@ const ProductCard: React.FC<Props> = ({ item }) => {
         <div className="font-extrabold">{brl.format(Number(item.preco))}</div>
         {item.descricao && <div className="text-slate-600 text-sm line-clamp-2">{item.descricao}</div>}
         {!soldOut && estoqueDisponivel > 0 && (
-          <div className="mt-1 text-xs font-semibold text-emerald-700">Restam {estoqueDisponivel} unidades</div>
+          <div className="mt-1 text-xs font-semibold text-emerald-700">
+            {showExactStock ? `Disponíveis: ${remaining}` : "Restam algumas unidades"}
+          </div>
         )}
         {soldOut && qty === 0 && (
           <div className="mt-1 text-xs font-semibold text-rose-600">Este produto está indisponível no momento.</div>

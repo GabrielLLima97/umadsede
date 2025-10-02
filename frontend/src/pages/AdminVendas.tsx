@@ -116,7 +116,7 @@ export default function AdminVendas(){
             <div className="text-lg font-black mb-2">{cat}</div>
             <div className="flex flex-col gap-3">
               {(filteredByCat[cat]||[]).map((it:any)=> (
-                <ProductCard key={it.id} item={it} />
+                <ProductCard key={it.id} item={it} showExactStock />
               ))}
             </div>
           </section>
