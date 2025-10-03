@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { api } from "../api";
 
 type Order = {
@@ -6,6 +6,32 @@ type Order = {
   cliente_nome?: string;
   status: string;
   created_at: string;
+};
+
+const PRODUCTION_STATUSES = ["pago", "a preparar", "em produção"];
+const READY_STATUSES = ["pronto"];
+
+const STATUS_META: Record<string, { label: string; badge: string; text: string }> = {
+  pago: {
+    label: "Pago",
+    badge: "border-sky-300 bg-sky-100/80 text-sky-800",
+    text: "text-sky-700",
+  },
+  "a preparar": {
+    label: "A preparar",
+    badge: "border-amber-300 bg-amber-100/80 text-amber-800",
+    text: "text-amber-700",
+  },
+  "em produção": {
+    label: "Em produção",
+    badge: "border-orange-300 bg-orange-100/80 text-orange-800",
+    text: "text-orange-700",
+  },
+  pronto: {
+    label: "Pronto",
+    badge: "border-emerald-300 bg-emerald-100/80 text-emerald-800",
+    text: "text-emerald-700",
+  },
 };
 
 function ProductionIcon({ className }: { className?: string }) {
@@ -49,6 +75,100 @@ function ReadyIcon({ className }: { className?: string }) {
   );
 }
 
+function StatusBadge({ status }: { status: string }) {
+  const base = STATUS_META[status];
+  if (!base) {
+    return null;
+  }
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] ${base.badge}`}
+    >
+      {base.label}
+    </span>
+  );
+}
+
+function OrderCard({ order, tone }: { order: Order; tone: "amber" | "emerald" }) {
+  const statusMeta = STATUS_META[order.status];
+  const accentClasses =
+    tone === "amber"
+      ? "from-amber-500/20 via-amber-400/10 to-amber-500/0 text-amber-700"
+      : "from-emerald-500/20 via-emerald-400/10 to-emerald-500/0 text-emerald-700";
+
+  const borderClasses =
+    tone === "amber"
+      ? "border border-amber-200/70 shadow-[0_18px_45px_-30px_rgba(217,119,6,0.45)]"
+      : "border border-emerald-200/70 shadow-[0_22px_55px_-28px_rgba(16,185,129,0.5)]";
+
+  return (
+    <article className={`flex h-full flex-col gap-4 rounded-3xl bg-white/92 p-5 backdrop-blur-sm ${borderClasses}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div className={`flex min-w-[5.5rem] flex-col items-center justify-center rounded-2xl bg-gradient-to-br px-4 py-3 text-5xl font-black leading-none ${accentClasses}`}>
+          {order.id}
+        </div>
+        <StatusBadge status={order.status} />
+      </div>
+      <div className="flex flex-col gap-2">
+        <span className="truncate text-3xl font-extrabold text-slate-900 md:text-4xl">
+          {order.cliente_nome || "Cliente"}
+        </span>
+        {statusMeta && (
+          <span className={`text-sm font-semibold ${statusMeta.text}`}>{statusMeta.label}</span>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function EmptyState({ tone, message }: { tone: "amber" | "emerald"; message: string }) {
+  const Icon = tone === "amber" ? ProductionIcon : ReadyIcon;
+  const border = tone === "amber" ? "border-amber-300/70 text-amber-600" : "border-emerald-300/70 text-emerald-600";
+  return (
+    <div className={`flex h-full flex-col items-center justify-center rounded-2xl border border-dashed bg-white/60 px-6 py-12 text-center text-sm font-semibold ${border}`}>
+      <Icon className="mb-3 h-10 w-10" />
+      <span className="text-base">{message}</span>
+    </div>
+  );
+}
+
+function SectionWrapper({
+  title,
+  subtitle,
+  tone,
+  icon,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  tone: "amber" | "emerald";
+  icon: JSX.Element;
+  children: ReactNode;
+}) {
+  const border = tone === "amber" ? "border-amber-200/70" : "border-emerald-200/70";
+  const gradient = tone === "amber" ? "from-amber-50 via-white to-white/90" : "from-emerald-50 via-white to-white/90";
+  const shadow =
+    tone === "amber"
+      ? "shadow-[0_30px_70px_-45px_rgba(217,119,6,0.6)]"
+      : "shadow-[0_32px_80px_-45px_rgba(16,185,129,0.6)]";
+
+  return (
+    <section
+      className={`relative flex min-h-[480px] flex-col rounded-[2.25rem] border ${border} bg-gradient-to-br ${gradient} p-6 text-slate-900 ${shadow}`}
+    >
+      <header className="flex flex-col items-center gap-3 text-center">
+        <div className="inline-flex items-center gap-3 rounded-full border border-white/70 bg-white/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.4em] text-slate-600">
+          {icon}
+          {title}
+        </div>
+        <h2 className="text-4xl font-black md:text-5xl">{title}</h2>
+        <p className="text-sm font-medium text-slate-500 md:text-base">{subtitle}</p>
+      </header>
+      <div className="mt-8 flex-1">{children}</div>
+    </section>
+  );
+}
+
 export default function TV() {
   const [prontos, setProntos] = useState<Order[]>([]);
   const [producao, setProducao] = useState<Order[]>([]);
@@ -59,8 +179,8 @@ export default function TV() {
         const data = (r.data?.results || r.data || []) as Order[];
         const arr = Array.isArray(data) ? data : [];
         const byCreated = (a: Order, b: Order) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-        setProntos(arr.filter((p) => p.status === "pronto").sort(byCreated));
-        setProducao(arr.filter((p) => p.status === "em produção").sort(byCreated));
+        setProntos(arr.filter((p) => READY_STATUSES.includes(p.status)).sort(byCreated));
+        setProducao(arr.filter((p) => PRODUCTION_STATUSES.includes(p.status)).sort(byCreated));
       });
 
     carregar();
@@ -78,89 +198,47 @@ export default function TV() {
     };
   }, []);
 
+  const sortedProducao = useMemo(() => producao, [producao]);
+  const sortedProntos = useMemo(() => prontos, [prontos]);
+
   return (
-    <div className="mx-auto w-full max-w-7xl font-burger px-4 pb-12 pt-8 md:px-10 lg:px-16">
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
-        <section className="relative flex flex-col rounded-3xl border border-amber-200/70 bg-gradient-to-br from-amber-50 via-white to-white/90 p-6 shadow-[0_25px_70px_-45px_rgba(217,119,6,0.6)]">
-          <header className="flex flex-col items-center gap-4 text-center">
-            <div className="inline-flex items-center gap-3 rounded-full bg-amber-500/15 px-5 py-2 text-xs font-semibold uppercase tracking-[0.4em] text-amber-700">
-              <ProductionIcon className="h-5 w-5" />
-              Em produção
-            </div>
-            <h2 className="flex items-center gap-3 text-4xl font-black text-amber-800 md:text-5xl">
-              <ProductionIcon className="h-10 w-10 md:h-12 md:w-12" />
-              Pedidos em produção
-            </h2>
-            <p className="text-sm font-medium text-amber-600/80 md:text-base">
-              Acompanhe os pedidos sendo preparados neste momento
-            </p>
-          </header>
-          <div className="mt-6 flex flex-col gap-5">
-            {producao.map((order) => (
-              <article
-                key={order.id}
-                className="flex items-stretch gap-4 rounded-3xl border border-amber-200/70 bg-white/95 p-4 shadow-[0_18px_45px_-30px_rgba(217,119,6,0.55)] backdrop-blur-sm"
-              >
-                <div className="flex min-w-[7rem] flex-col items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-amber-500/0 px-5 py-4 md:min-w-[8rem]">
-                  <span className="text-5xl font-black leading-none text-amber-700 md:text-6xl">{order.id}</span>
-                </div>
-                <span
-                  className="hidden h-full w-px self-stretch bg-gradient-to-b from-transparent via-amber-400/50 to-transparent md:inline-flex"
-                  aria-hidden="true"
-                />
-                <div className="flex flex-1 items-center rounded-2xl bg-white/75 px-6 py-4">
-                  <span className="truncate text-3xl font-bold text-slate-900 md:text-4xl">{order.cliente_nome || "Cliente"}</span>
-                </div>
-              </article>
-            ))}
-            {producao.length === 0 && (
-              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-amber-300/70 bg-white/70 px-6 py-12 text-center text-amber-600">
-                <ProductionIcon className="mb-3 h-10 w-10" />
-                <span className="text-lg font-semibold">Sem pedidos em produção no momento</span>
+    <div className="min-h-screen w-full bg-slate-950 px-6 pb-12 pt-10 font-burger text-white md:px-10">
+      <div className="mx-auto flex w-full max-w-[1920px] flex-col gap-10">
+        <div className="grid gap-10 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
+          <SectionWrapper
+            title="Em produção"
+            subtitle="Acompanhe pedidos em preparo e recém pagos"
+            tone="amber"
+            icon={<ProductionIcon className="h-4 w-4" />}
+          >
+            {sortedProducao.length > 0 ? (
+              <div className="grid h-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 [@media(min-width:1920px)]:grid-cols-5">
+                {sortedProducao.map((order) => (
+                  <OrderCard key={order.id} order={order} tone="amber" />
+                ))}
               </div>
+            ) : (
+              <EmptyState tone="amber" message="Sem pedidos em produção agora." />
             )}
-          </div>
-        </section>
-        <section className="relative flex flex-col rounded-3xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50 via-white to-white/90 p-6 shadow-[0_30px_85px_-40px_rgba(16,185,129,0.6)]">
-          <header className="flex flex-col items-center gap-4 text-center">
-            <div className="inline-flex items-center gap-3 rounded-full bg-emerald-500/15 px-5 py-2 text-xs font-semibold uppercase tracking-[0.4em] text-emerald-700">
-              <ReadyIcon className="h-5 w-5" />
-              Prontos para retirada
-            </div>
-            <h2 className="flex items-center gap-3 text-4xl font-black text-emerald-800 md:text-5xl">
-              <ReadyIcon className="h-10 w-10 md:h-12 md:w-12" />
-              Pedidos prontos para retirada
-            </h2>
-            <p className="text-sm font-medium text-emerald-600/80 md:text-base">
-              Clientes podem retirar seus pedidos a seguir
-            </p>
-          </header>
-          <div className="mt-6 flex flex-col gap-5">
-            {prontos.map((order) => (
-              <article
-                key={order.id}
-                className="flex items-stretch gap-5 rounded-3xl border border-emerald-200/70 bg-white/95 p-5 shadow-[0_22px_55px_-28px_rgba(16,185,129,0.6)] backdrop-blur-sm"
-              >
-                <div className="flex min-w-[8rem] flex-col items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-emerald-500/0 px-6 py-5 md:min-w-[9rem]">
-                  <span className="text-6xl font-black leading-none text-emerald-700 md:text-7xl">{order.id}</span>
-                </div>
-                <span
-                  className="hidden h-full w-px self-stretch bg-gradient-to-b from-transparent via-emerald-400/60 to-transparent md:inline-flex"
-                  aria-hidden="true"
-                />
-                <div className="flex flex-1 items-center rounded-2xl bg-white/80 px-8 py-5">
-                  <span className="truncate text-4xl font-extrabold text-emerald-900 md:text-5xl">{order.cliente_nome || "Cliente"}</span>
-                </div>
-              </article>
-            ))}
-            {prontos.length === 0 && (
-              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-emerald-300/70 bg-white/70 px-6 py-12 text-center text-emerald-600">
-                <ReadyIcon className="mb-3 h-10 w-10" />
-                <span className="text-lg font-semibold">Nenhum pedido pronto para retirada agora</span>
+          </SectionWrapper>
+
+          <SectionWrapper
+            title="Prontos para retirada"
+            subtitle="Pedidos liberados para o cliente"
+            tone="emerald"
+            icon={<ReadyIcon className="h-4 w-4" />}
+          >
+            {sortedProntos.length > 0 ? (
+              <div className="grid h-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 [@media(min-width:1920px)]:grid-cols-5">
+                {sortedProntos.map((order) => (
+                  <OrderCard key={order.id} order={order} tone="emerald" />
+                ))}
               </div>
+            ) : (
+              <EmptyState tone="emerald" message="Nenhum pedido pronto no momento." />
             )}
-          </div>
-        </section>
+          </SectionWrapper>
+        </div>
       </div>
     </div>
   );
