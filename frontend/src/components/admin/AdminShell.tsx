@@ -5,6 +5,7 @@ import { api } from "../../api";
 import { useAuth, attachAuthEventListeners } from "../../store/auth";
 import { ADMIN_ROUTES, AdminRouteDefinition, getFirstAllowedRoute } from "../../constants/adminRoutes";
 import type { DashboardUser } from "../../store/auth";
+import { useAdminPresence } from "../../hooks/useClientPresence";
 
 type NavItem = AdminRouteDefinition & { icon: JSX.Element };
 
@@ -131,6 +132,8 @@ export default function AdminShell() {
   const { token, user, allowedRoutes, initialize, initialized, loading, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  useAdminPresence(Boolean(token));
 
   useEffect(() => {
     initialize();

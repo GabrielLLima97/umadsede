@@ -16,6 +16,7 @@ from channels.layers import get_channel_layer
 import os
 import psutil
 import redis
+from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import csrf_exempt
 from django.core.management.color import no_style
 
@@ -57,6 +58,50 @@ def count_presence(kind: str) -> int:
         return sum(1 for _ in client.scan_iter(match=f"presence:{kind}:*", count=500))
     except Exception:
         return 0
+
+
+def fetch_presence_windows(kind: str):
+    try:
+        client = get_redis_client()
+    except Exception:
+        return []
+
+    keys = list(client.scan_iter(match=f"presence:{kind}:*", count=500))
+    if not keys:
+        return []
+
+    values = client.mget(keys)
+    windows = []
+    for raw in values:
+        if not raw:
+            continue
+        try:
+            data = json.loads(raw)
+        except (ValueError, TypeError):
+            continue
+        start_dt = parse_to_aware(data.get("timestamp"))
+        ttl = data.get("ttl")
+        expires_dt = parse_to_aware(data.get("expires_at"))
+        if not expires_dt and ttl and start_dt:
+            try:
+                expires_dt = start_dt + timedelta(seconds=int(ttl))
+            except (TypeError, ValueError):
+                expires_dt = None
+        if not start_dt or not expires_dt:
+            continue
+        windows.append((start_dt, expires_dt))
+    return windows
+
+
+def parse_to_aware(value):
+    if not value:
+        return None
+    dt = parse_datetime(value)
+    if not dt:
+        return None
+    if timezone.is_naive(dt):
+        dt = timezone.make_aware(dt, timezone=timezone.utc)
+    return dt
 
 class ItemView(viewsets.ModelViewSet):
     serializer_class = ItemSerializer
@@ -502,6 +547,8 @@ def admin_metrics_history(request):
         ).values("user_id", "created_at", "expires_at")
     )
 
+    client_windows = fetch_presence_windows("client")
+
     points = []
     for index in range(minutes):
         point_time = start + timedelta(minutes=index)
@@ -513,12 +560,14 @@ def admin_metrics_history(request):
             if created_at <= point_time and expires_at > point_time:
                 active_tokens += 1
                 active_users.add(token["user_id"])
+        active_clients = sum(1 for start_dt, end_dt in client_windows if start_dt <= point_time < end_dt)
         points.append(
             {
                 "timestamp": point_time,
                 "active_users": len(active_users),
                 "active_tokens": active_tokens,
-                "active_total": len(active_users),
+                "active_clients": active_clients,
+                "active_total": len(active_users) + active_clients,
             }
         )
 
@@ -618,6 +667,8 @@ def register_presence(request):
         "ip": request.META.get("REMOTE_ADDR", ""),
         "user_agent": request.META.get("HTTP_USER_AGENT", "")[:255],
         "timestamp": timezone.now().isoformat(),
+        "expires_at": (timezone.now() + timedelta(seconds=ttl)).isoformat(),
+        "ttl": ttl,
     }
 
     try:

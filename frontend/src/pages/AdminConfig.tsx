@@ -971,8 +971,13 @@ function ActiveUsersChart({ points, loading }: { points: MetricsHistoryPoint[]; 
 
   const width = 640;
   const height = 200;
-  const values = points.map((point) => point.active_total ?? point.active_users);
-  const maxValue = Math.max(...values, 1);
+  const valuesTotal = points.map((point) => point.active_total ?? point.active_users);
+  const valuesAdmins = points.map((point) => point.active_users);
+  const valuesClients = points.map((point, index) => {
+    const total = point.active_total ?? valuesTotal[index];
+    return Math.max(total - (point.active_users ?? 0), 0);
+  });
+  const maxValue = Math.max(...valuesTotal, ...valuesAdmins, ...valuesClients, 1);
   const denominator = Math.max(points.length - 1, 1);
   const coords = points.map((point, index) => {
     const x = (index / denominator) * width;
@@ -980,10 +985,23 @@ function ActiveUsersChart({ points, loading }: { points: MetricsHistoryPoint[]; 
     return { x, y, point };
   });
 
+  const coordsAdmins = points.map((point, index) => {
+    const x = (index / denominator) * width;
+    const y = height - ((point.active_users ?? 0) / maxValue) * height;
+    return { x, y };
+  });
+
+  const coordsClients = points.map((point, index) => {
+    const total = point.active_total ?? valuesTotal[index];
+    const clients = Math.max(total - (point.active_users ?? 0), 0);
+    const x = (index / denominator) * width;
+    const y = height - (clients / maxValue) * height;
+    return { x, y };
+  });
+
   const polylinePoints = coords.map((coord) => `${coord.x.toFixed(1)},${coord.y.toFixed(1)}`).join(" ");
-  const areaPath = `M0 ${height} ${coords
-    .map((coord) => `L${coord.x.toFixed(1)} ${coord.y.toFixed(1)}`)
-    .join(" ")} L${width} ${height} Z`;
+  const polylineAdmins = coordsAdmins.map((coord) => `${coord.x.toFixed(1)},${coord.y.toFixed(1)}`).join(" ");
+  const polylineClients = coordsClients.map((coord) => `${coord.x.toFixed(1)},${coord.y.toFixed(1)}`).join(" ");
 
   const yTicks = Array.from({ length: 5 }, (_, index) => (index / 4) * maxValue);
   const xTickCount = Math.min(6, coords.length);
@@ -995,13 +1013,17 @@ function ActiveUsersChart({ points, loading }: { points: MetricsHistoryPoint[]; 
     <div className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white/80 p-3">
       <svg viewBox={`0 0 ${width} ${height}`} className="h-48 w-full" role="img" aria-label="Histórico de conexões ativas">
         <defs>
-          <linearGradient id="usersArea" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgba(232,93,27,0.35)" />
-            <stop offset="100%" stopColor="rgba(232,93,27,0)" />
-          </linearGradient>
           <linearGradient id="usersLine" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="#E85D1B" />
             <stop offset="100%" stopColor="#F9BD1E" />
+          </linearGradient>
+          <linearGradient id="adminsLine" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#2563eb" />
+            <stop offset="100%" stopColor="#38bdf8" />
+          </linearGradient>
+          <linearGradient id="clientsLine" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#10b981" />
+            <stop offset="100%" stopColor="#4ade80" />
           </linearGradient>
         </defs>
         {yTicks.map((tickValue, index) => {
@@ -1015,8 +1037,9 @@ function ActiveUsersChart({ points, loading }: { points: MetricsHistoryPoint[]; 
             </g>
           );
         })}
-        <path d={areaPath} fill="url(#usersArea)" stroke="none" />
         <polyline points={polylinePoints} fill="none" stroke="url(#usersLine)" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+        <polyline points={polylineAdmins} fill="none" stroke="url(#adminsLine)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" opacity={0.9} />
+        <polyline points={polylineClients} fill="none" stroke="url(#clientsLine)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" opacity={0.8} />
         <circle
           cx={lastCoord.x}
           cy={lastCoord.y}
@@ -1036,6 +1059,17 @@ function ActiveUsersChart({ points, loading }: { points: MetricsHistoryPoint[]; 
           {lastCoord.point.active_total ?? lastCoord.point.active_users}
         </text>
       </svg>
+      <div className="mt-2 flex flex-wrap items-center gap-4 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+        <span className="inline-flex items-center gap-1 text-[11px]">
+          <span className="inline-block h-2 w-4 rounded-full" style={{ backgroundColor: "#E85D1B" }} /> Total
+        </span>
+        <span className="inline-flex items-center gap-1 text-[11px]">
+          <span className="inline-block h-2 w-4 rounded-full" style={{ backgroundColor: "#2563eb" }} /> Admin
+        </span>
+        <span className="inline-flex items-center gap-1 text-[11px]">
+          <span className="inline-block h-2 w-4 rounded-full" style={{ backgroundColor: "#10b981" }} /> Clientes
+        </span>
+      </div>
     </div>
   );
 }

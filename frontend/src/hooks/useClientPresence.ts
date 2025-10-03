@@ -1,15 +1,20 @@
 import { useEffect } from "react";
 import { api } from "../api";
 
-const STORAGE_KEY = "client-presence-id-v1";
+const STORAGE_MAP: Record<string, string> = {
+  client: "client-presence-id-v1",
+  admin: "admin-presence-id-v1",
+};
+
 const HEARTBEAT_MS = 30_000;
 
-function ensureSessionId(): string {
+function ensureSessionId(source: "client" | "admin"): string {
   if (typeof window === "undefined") return "";
-  const existing = window.localStorage.getItem(STORAGE_KEY);
+  const storageKey = STORAGE_MAP[source] ?? STORAGE_MAP.client;
+  const existing = window.localStorage.getItem(storageKey);
   if (existing) return existing;
   const generated = generateId();
-  window.localStorage.setItem(STORAGE_KEY, generated);
+  window.localStorage.setItem(storageKey, generated);
   return generated;
 }
 
@@ -20,27 +25,27 @@ function generateId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
-async function sendPresence(sessionId: string) {
+async function sendPresence(sessionId: string, source: "client" | "admin") {
   if (!sessionId) return;
   try {
     await api.post("/presence", {
       session_id: sessionId,
-      source: "client",
+      source,
     });
   } catch {
     // presença é best-effort – falhas são ignoradas
   }
 }
 
-export function useClientPresence(enabled = true) {
+export function usePresence(source: "client" | "admin", enabled = true) {
   useEffect(() => {
     if (!enabled || typeof window === "undefined") return;
-    const sessionId = ensureSessionId();
+    const sessionId = ensureSessionId(source);
     let stopped = false;
 
     const heartbeat = () => {
       if (stopped) return;
-      void sendPresence(sessionId);
+      void sendPresence(sessionId, source);
     };
 
     heartbeat();
@@ -59,5 +64,13 @@ export function useClientPresence(enabled = true) {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [enabled]);
+  }, [enabled, source]);
+}
+
+export function useClientPresence(enabled = true) {
+  usePresence("client", enabled);
+}
+
+export function useAdminPresence(enabled = true) {
+  usePresence("admin", enabled);
 }
