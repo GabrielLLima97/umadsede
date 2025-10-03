@@ -6,6 +6,7 @@ import { useOrders } from "../store/orders";
 import { api } from "../api";
 import { brl } from "../utils/format";
 import { useToast } from "../store/toast";
+import { useClientPresence } from "../hooks/useClientPresence";
 
 type PixData = {
   ticketUrl?: string;
@@ -24,6 +25,8 @@ type PixModalState = {
 };
 
 export default function MyOrders(){
+  useClientPresence(true);
+
   const refs = useOrders(s=>s.orders);
   const [orders,setOrders]=useState<any[]>([]);
   const [loading,setLoading] = useState(false);

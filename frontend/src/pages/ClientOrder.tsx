@@ -12,6 +12,7 @@ import { useOrders } from "../store/orders";
 import { useCartTotals } from "../store/cart";
 import CheckoutModal from "../components/client/CheckoutModal";
 import { brl } from "../utils/format";
+import { useClientPresence } from "../hooks/useClientPresence";
 
 const DEFAULT_CATEGORY_PRIORITY: Record<string, number> = {
   hamburguer: 0,
@@ -20,6 +21,8 @@ const DEFAULT_CATEGORY_PRIORITY: Record<string, number> = {
 };
 
 export default function ClientOrder(){
+  useClientPresence(true);
+
   const headerActions = (
     <Link
       to="/cliente/pedidos"

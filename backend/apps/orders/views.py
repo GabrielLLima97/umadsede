@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 
 from rest_framework import viewsets, permissions, status
@@ -42,6 +43,20 @@ from .auth_utils import (
     create_token,
     invalidate_token,
 )
+
+
+def get_redis_client():
+    host = os.getenv("REDIS_HOST", "redis")
+    port = int(os.getenv("REDIS_PORT", "6379"))
+    return redis.Redis(host=host, port=port, db=0, socket_connect_timeout=1, socket_timeout=1)
+
+
+def count_presence(kind: str) -> int:
+    try:
+        client = get_redis_client()
+        return sum(1 for _ in client.scan_iter(match=f"presence:{kind}:*", count=500))
+    except Exception:
+        return 0
 
 class ItemView(viewsets.ModelViewSet):
     serializer_class = ItemSerializer
@@ -402,26 +417,33 @@ def admin_metrics(request):
     except Exception as exc:
         systems.append({"name": "Banco de Dados", "status": "offline", "detail": str(exc)})
     # Redis
+    redis_online = False
+    redis_error = None
     try:
-        host = os.getenv("REDIS_HOST", "redis")
-        port = int(os.getenv("REDIS_PORT", "6379"))
-        client = redis.Redis(host=host, port=port, db=0, socket_connect_timeout=1, socket_timeout=1)
+        client = get_redis_client()
         client.ping()
-        systems.append({"name": "Redis", "status": "online"})
+        redis_online = True
     except Exception as exc:
-        systems.append({"name": "Redis", "status": "offline", "detail": str(exc)})
+        redis_error = str(exc)
+
+    if redis_online:
+        systems.append({"name": "Redis", "status": "online"})
+    else:
+        systems.append({"name": "Redis", "status": "offline", "detail": redis_error or "Indisponível"})
     # Mercado Pago
     mp_status = "online" if settings.MP_ACCESS_TOKEN else "offline"
     systems.append({"name": "Mercado Pago", "status": mp_status})
 
     now = timezone.now()
     active_tokens = AuthToken.objects.filter(is_active=True, expires_at__gt=now).count()
-    active_users = (
+    active_admins = (
         AuthToken.objects.filter(is_active=True, expires_at__gt=now)
         .values("user_id")
         .distinct()
         .count()
     )
+    active_clients = count_presence("client") if redis_online else 0
+    active_total = active_admins + active_clients
 
     cpu_percent = psutil.cpu_percent(interval=0.1)
     virtual = psutil.virtual_memory()
@@ -450,7 +472,9 @@ def admin_metrics(request):
         "systems": systems,
         "connections": {
             "active_tokens": active_tokens,
-            "active_users": active_users,
+            "active_users": active_admins,
+            "active_clients": active_clients,
+            "active_total": active_total,
         },
         "instance": instance,
     })
@@ -494,8 +518,12 @@ def admin_metrics_history(request):
                 "timestamp": point_time,
                 "active_users": len(active_users),
                 "active_tokens": active_tokens,
+                "active_total": len(active_users),
             }
         )
+
+    current_clients = count_presence("client")
+    current_admins = AuthToken.objects.filter(is_active=True, expires_at__gt=now).values("user_id").distinct().count()
 
     return Response(
         {
@@ -503,6 +531,11 @@ def admin_metrics_history(request):
             "end": now,
             "interval_minutes": 1,
             "points": points,
+            "summary": {
+                "active_admins": current_admins,
+                "active_clients": current_clients,
+                "active_total": current_admins + current_clients,
+            },
         }
     )
 
@@ -558,6 +591,42 @@ def admin_reset_sales(request):
             "items_reset": items_with_sales,
         }
     )
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([permissions.AllowAny])
+@csrf_exempt
+def register_presence(request):
+    session_id = (request.data.get("session_id") or "").strip()
+    source = (request.data.get("source") or "client").strip().lower()
+    if source not in {"client", "admin"}:
+        source = "client"
+
+    if not session_id or len(session_id) > 128:
+        return Response({"detail": "session_id inválido."}, status=status.HTTP_400_BAD_REQUEST)
+
+    ttl_request = request.data.get("ttl")
+    try:
+        ttl = int(ttl_request)
+    except (TypeError, ValueError):
+        ttl = 90
+    ttl = max(30, min(300, ttl))
+
+    payload = {
+        "source": source,
+        "ip": request.META.get("REMOTE_ADDR", ""),
+        "user_agent": request.META.get("HTTP_USER_AGENT", "")[:255],
+        "timestamp": timezone.now().isoformat(),
+    }
+
+    try:
+        client = get_redis_client()
+        client.setex(f"presence:{source}:{session_id}", ttl, json.dumps(payload))
+    except Exception as exc:
+        return Response({"detail": f"Erro ao registrar presença: {exc}"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    return Response({"ok": True, "expires_in": ttl})
 
 
 @api_view(["POST"])

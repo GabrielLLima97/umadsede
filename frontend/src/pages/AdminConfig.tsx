@@ -36,7 +36,12 @@ type NewUserState = {
 type AdminMetricsResponse = {
   timestamp: string;
   systems: { name: string; status: string; detail?: string }[];
-  connections: { active_tokens: number; active_users: number };
+  connections: {
+    active_tokens: number;
+    active_users: number;
+    active_clients?: number;
+    active_total?: number;
+  };
   instance: {
     cpu_percent?: number;
     memory_percent?: number;
@@ -54,6 +59,7 @@ type MetricsHistoryPoint = {
   timestamp: string;
   active_users: number;
   active_tokens: number;
+  active_total?: number;
 };
 
 type MetricsHistoryResponse = {
@@ -61,6 +67,11 @@ type MetricsHistoryResponse = {
   end: string;
   interval_minutes: number;
   points: MetricsHistoryPoint[];
+  summary?: {
+    active_admins?: number;
+    active_clients?: number;
+    active_total?: number;
+  };
 };
 
 type MetricsAlert = {
@@ -492,6 +503,10 @@ export function ConfigMonitoringPage() {
   const memorySeverity = getSeverity(metrics?.instance?.memory_percent, 75, 90);
   const diskSeverity = getSeverity(metrics?.instance?.disk_percent, 75, 90);
 
+  const activeAdmins = metrics?.connections?.active_users ?? historyQuery.data?.summary?.active_admins ?? 0;
+  const activeClients = metrics?.connections?.active_clients ?? historyQuery.data?.summary?.active_clients ?? 0;
+  const activeTotalNow = metrics?.connections?.active_total ?? activeAdmins + activeClients;
+
   const memoryHelper =
     metrics?.instance?.memory_used !== undefined && metrics?.instance?.memory_total !== undefined
       ? `${formatBytes(metrics.instance.memory_used)} de ${formatBytes(metrics.instance.memory_total)}`
@@ -507,14 +522,14 @@ export function ConfigMonitoringPage() {
 
   const historyStats = useMemo(() => {
     if (!historyPoints.length) return null;
-    const values = historyPoints.map((point) => point.active_users);
+    const values = historyPoints.map((point) => point.active_total ?? point.active_users);
     const peak = Math.max(...values);
     const average = values.reduce((acc, value) => acc + value, 0) / values.length;
     const lastPoint = historyPoints[historyPoints.length - 1];
     return {
       peak,
       average,
-      last: lastPoint.active_users,
+      last: lastPoint.active_total ?? lastPoint.active_users,
       lastTime: new Date(lastPoint.timestamp),
     };
   }, [historyPoints]);
@@ -594,10 +609,11 @@ export function ConfigMonitoringPage() {
           </div>
         )}
         <div className="grid gap-4 text-sm text-slate-600 sm:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3">
+         <div className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Agora</div>
-            <div className="text-2xl font-black text-slate-900">{metrics?.connections?.active_users ?? historyStats?.last ?? 0}</div>
-            <div className="text-xs text-slate-500">Usuários ativos no momento</div>
+            <div className="text-2xl font-black text-slate-900">{activeTotalNow}</div>
+            <div className="text-xs text-slate-500">Conexões ativas agora</div>
+            <div className="text-[11px] text-slate-400">Admin: {activeAdmins} • Clientes: {activeClients}</div>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Pico</div>
@@ -607,7 +623,7 @@ export function ConfigMonitoringPage() {
           <div className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Média</div>
             <div className="text-2xl font-black text-slate-900">{historyStats ? historyStats.average.toFixed(1) : "--"}</div>
-            <div className="text-xs text-slate-500">Usuários por minuto</div>
+            <div className="text-xs text-slate-500">Conexões por minuto</div>
           </div>
         </div>
       </section>
@@ -955,12 +971,12 @@ function ActiveUsersChart({ points, loading }: { points: MetricsHistoryPoint[]; 
 
   const width = 640;
   const height = 200;
-  const values = points.map((point) => point.active_users);
+  const values = points.map((point) => point.active_total ?? point.active_users);
   const maxValue = Math.max(...values, 1);
   const denominator = Math.max(points.length - 1, 1);
   const coords = points.map((point, index) => {
     const x = (index / denominator) * width;
-    const y = height - (point.active_users / maxValue) * height;
+    const y = height - ((point.active_total ?? point.active_users) / maxValue) * height;
     return { x, y, point };
   });
 
@@ -977,7 +993,7 @@ function ActiveUsersChart({ points, loading }: { points: MetricsHistoryPoint[]; 
 
   return (
     <div className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white/80 p-3">
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-48 w-full" role="img" aria-label="Histórico de usuários ativos">
+      <svg viewBox={`0 0 ${width} ${height}`} className="h-48 w-full" role="img" aria-label="Histórico de conexões ativas">
         <defs>
           <linearGradient id="usersArea" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="rgba(232,93,27,0.35)" />
@@ -1017,7 +1033,7 @@ function ActiveUsersChart({ points, loading }: { points: MetricsHistoryPoint[]; 
           ))}
         </g>
         <text x={lastCoord.x + 8} y={lastCoord.y - 8} fontSize={12} fill="#E85D1B" fontWeight="600">
-          {lastCoord.point.active_users}
+          {lastCoord.point.active_total ?? lastCoord.point.active_users}
         </text>
       </svg>
     </div>

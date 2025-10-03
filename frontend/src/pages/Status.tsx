@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "../api";
+import { useClientPresence } from "../hooks/useClientPresence";
 
 // Jornada simplificada para o cliente
 const STEPS = [
@@ -11,6 +12,8 @@ const STEPS = [
 ];
 
 export default function Status(){
+  useClientPresence(true);
+
   const { id } = useParams();
   const [pedido,setPedido]=useState<any>(null);
   const [loading,setLoading]=useState(true);

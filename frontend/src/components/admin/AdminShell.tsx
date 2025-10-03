@@ -10,7 +10,12 @@ type NavItem = AdminRouteDefinition & { icon: JSX.Element };
 
 type AdminMetricsResponse = {
   systems: { name: string; status: string; detail?: string }[];
-  connections: { active_tokens: number; active_users: number };
+  connections: {
+    active_tokens: number;
+    active_users: number;
+    active_clients?: number;
+    active_total?: number;
+  };
   instance: {
     cpu_percent?: number;
     memory_percent?: number;
@@ -136,6 +141,14 @@ export default function AdminShell() {
   const showAdminInsights = useMemo(() => (allowedRoutes || []).includes("config"), [allowedRoutes]);
   const metrics = useAdminMetrics(showAdminInsights);
 
+  const connectionTotals = {
+    admins: metrics.data?.connections?.active_users ?? 0,
+    clients: metrics.data?.connections?.active_clients ?? 0,
+    total:
+      metrics.data?.connections?.active_total ??
+      ((metrics.data?.connections?.active_users ?? 0) + (metrics.data?.connections?.active_clients ?? 0)),
+  };
+
   if (!token && initialized) {
     return <Navigate to="/admin/login" replace />;
   }
@@ -180,7 +193,7 @@ export default function AdminShell() {
           onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
           onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
           onLogoClick={handleNavigateHome}
-          activeUsers={metrics.data?.connections?.active_users ?? 0}
+          activeConnections={connectionTotals}
         />
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <Outlet />
@@ -299,7 +312,7 @@ function AdminHeader({
   user,
   metrics,
   loadingMetrics,
-  activeUsers,
+  activeConnections,
   showInsights,
   collapsed,
   onToggleSidebar,
@@ -309,7 +322,7 @@ function AdminHeader({
   user: DashboardUser;
   metrics?: AdminMetricsResponse;
   loadingMetrics: boolean;
-  activeUsers: number;
+  activeConnections: { total: number; admins: number; clients: number };
   showInsights: boolean;
   collapsed: boolean;
   onToggleSidebar: () => void;
@@ -405,11 +418,15 @@ function AdminHeader({
         </div>
         <div className="flex items-center gap-3">
           {showInsights && (
-            <div className="hidden items-center gap-1 rounded-full border border-white/50 px-3 py-2 text-sm font-semibold text-slate-600 shadow-sm md:flex">
+            <div
+              className="hidden items-center gap-2 rounded-full border border-white/50 px-3 py-2 text-sm font-semibold text-slate-600 shadow-sm md:flex"
+              title={`Administradores: ${activeConnections.admins} • Clientes: ${activeConnections.clients}`}
+            >
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
-                <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 20a8 8 0 0 1 16 0" />
+                <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+                <path d="M4 20a8 8 0 0 1 16 0" />
               </svg>
-              <span>{activeUsers}</span>
+              <span>{activeConnections.total}</span>
             </div>
           )}
           <div className="hidden text-right text-sm md:block">
