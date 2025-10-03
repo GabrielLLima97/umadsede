@@ -229,7 +229,7 @@ function AdminSidebar({
         } ${collapsed ? "md:w-20" : "md:w-72"}`}
       >
         <div className="flex h-full w-full flex-col border-r border-white/30">
-          <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-8">
+          <nav className="flex-1 space-y-1 overflow-y-auto px-2 pb-8 pt-20 md:pt-28">
             {items.map((item) => (
               <NavLink
                 key={item.key}
@@ -321,7 +321,7 @@ function AdminHeader({
 
   return (
     <header className="sticky top-0 z-[60] border-b border-white/30 bg-white/60 backdrop-blur-2xl transition">
-      <div className="flex items-center gap-4 px-4 py-3 md:px-6">
+      <div className="flex items-center gap-3 px-2 py-3 md:pl-4 md:pr-6">
         <button
           type="button"
           onClick={onToggleSidebar}
@@ -335,7 +335,7 @@ function AdminHeader({
         <button
           type="button"
           onClick={onToggleCollapse}
-          className="hidden h-10 w-10 items-center justify-center rounded-full border border-white/50 text-slate-600 shadow-sm transition hover:bg-white/50 md:inline-flex"
+          className="hidden h-10 w-10 items-center justify-center rounded-full border border-brand-primary/50 bg-brand-primary text-white shadow-md shadow-brand-primary/30 transition hover:bg-brand-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40 md:inline-flex"
           aria-label="Alternar menu"
         >
           {collapsed ? (
