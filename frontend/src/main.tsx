@@ -18,6 +18,9 @@ const AdminVendas = lazy(() => import("./pages/AdminVendas"));
 const AdminEstoque = lazy(() => import("./pages/AdminEstoque"));
 const AdminDashboard = lazy(() => import("./pages/AdminRelatorio"));
 const AdminConfig = lazy(() => import("./pages/AdminConfig"));
+const ConfigUsersPage = lazy(() => import("./pages/AdminConfig").then((m) => ({ default: m.ConfigUsersPage })));
+const ConfigMonitoringPage = lazy(() => import("./pages/AdminConfig").then((m) => ({ default: m.ConfigMonitoringPage })));
+const ConfigResetPage = lazy(() => import("./pages/AdminConfig").then((m) => ({ default: m.ConfigResetPage })));
 const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 
 const queryClient = new QueryClient();
@@ -54,7 +57,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                 <Route path="itens" element={<ItemsAdmin />} />
                 <Route path="estoque" element={<AdminEstoque />} />
                 <Route path="pagamentos" element={<PaymentsAdmin />} />
-                <Route path="config" element={<AdminConfig />} />
+                <Route path="config" element={<AdminConfig />}>
+                  <Route index element={<ConfigUsersPage />} />
+                  <Route path="monitoramento" element={<ConfigMonitoringPage />} />
+                  <Route path="reset-vendas" element={<ConfigResetPage />} />
+                </Route>
               </Route>
             </Route>
           </Routes>

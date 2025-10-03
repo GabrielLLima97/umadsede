@@ -16,6 +16,8 @@ from apps.orders.views import (
     admin_me,
     admin_routes,
     admin_metrics,
+    admin_metrics_history,
+    admin_reset_sales,
     DashboardUserViewSet,
 )
 
@@ -38,5 +40,7 @@ urlpatterns = [
     path("api/admin/auth/me", admin_me),
     path("api/admin/routes", admin_routes),
     path("api/admin/metrics", admin_metrics),
+    path("api/admin/metrics/history", admin_metrics_history),
+    path("api/admin/reset-sales", admin_reset_sales),
     path("healthz", lambda r: JsonResponse({"ok": True})),
 ]

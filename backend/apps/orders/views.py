@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action, api_view, permission_classes, authentication_classes
 from rest_framework.response import Response
@@ -14,8 +16,18 @@ import os
 import psutil
 import redis
 from django.views.decorators.csrf import csrf_exempt
+from django.core.management.color import no_style
 
-from .models import Item, Pedido, CategoryOrder, DashboardUser, AuthToken
+from .models import (
+    Item,
+    Pedido,
+    PedidoItem,
+    Pagamento,
+    StatusLog,
+    CategoryOrder,
+    DashboardUser,
+    AuthToken,
+)
 from .serializers import (
     ItemSerializer,
     PedidoSerializer,
@@ -442,6 +454,110 @@ def admin_metrics(request):
         },
         "instance": instance,
     })
+
+
+@api_view(["GET"])
+@authentication_classes([])
+@permission_classes([permissions.AllowAny])
+def admin_metrics_history(request):
+    require_dashboard_user(request, routes=["config"])
+    minutes_param = request.query_params.get("minutes")
+    try:
+        minutes = int(minutes_param) if minutes_param else 60
+    except (TypeError, ValueError):
+        minutes = 60
+    minutes = max(5, min(minutes, 720))
+
+    now = timezone.now().replace(second=0, microsecond=0)
+    start = now - timedelta(minutes=minutes - 1)
+
+    tokens = list(
+        AuthToken.objects.filter(
+            is_active=True,
+            expires_at__gt=start,
+        ).values("user_id", "created_at", "expires_at")
+    )
+
+    points = []
+    for index in range(minutes):
+        point_time = start + timedelta(minutes=index)
+        active_tokens = 0
+        active_users = set()
+        for token in tokens:
+            created_at = token["created_at"]
+            expires_at = token["expires_at"]
+            if created_at <= point_time and expires_at > point_time:
+                active_tokens += 1
+                active_users.add(token["user_id"])
+        points.append(
+            {
+                "timestamp": point_time,
+                "active_users": len(active_users),
+                "active_tokens": active_tokens,
+            }
+        )
+
+    return Response(
+        {
+            "start": start,
+            "end": now,
+            "interval_minutes": 1,
+            "points": points,
+        }
+    )
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([permissions.AllowAny])
+def admin_reset_sales(request):
+    require_dashboard_user(request, routes=["config"])
+
+    confirmation = (request.data.get("confirm") or "").strip().upper()
+    if confirmation not in {"RESETAR", "RESET"}:
+        return Response(
+            {"detail": "Confirme enviando 'RESETAR' no campo 'confirm'."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    orders_count = Pedido.objects.count()
+    payments_count = Pagamento.objects.count()
+    status_count = StatusLog.objects.count()
+    items_with_sales = Item.objects.filter(vendidos__gt=0).count()
+
+    with transaction.atomic():
+        Pedido.objects.all().delete()
+        Pagamento.objects.all().delete()
+        StatusLog.objects.all().delete()
+        Item.objects.update(vendidos=0)
+
+        if connection.features.supports_sequence_reset:
+            models_to_reset = [Pedido, PedidoItem, Pagamento, StatusLog]
+            sql_statements = connection.ops.sequence_reset_sql(no_style(), models_to_reset)
+            if sql_statements:
+                with connection.cursor() as cursor:
+                    for sql in sql_statements:
+                        cursor.execute(sql)
+
+    try:
+        layer = get_channel_layer()
+        if layer:
+            async_to_sync(layer.group_send)(
+                "orders",
+                {"type": "orders.event", "data": {"event": "orders_reset"}},
+            )
+    except Exception:
+        pass
+
+    return Response(
+        {
+            "ok": True,
+            "orders_deleted": orders_count,
+            "payments_deleted": payments_count,
+            "status_logs_deleted": status_count,
+            "items_reset": items_with_sales,
+        }
+    )
 
 
 @api_view(["POST"])
