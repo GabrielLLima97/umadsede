@@ -95,7 +95,6 @@ function Section({
   tone,
   icon,
   children,
-  fontScale,
   cardSpacing,
 }: {
   title: string;
@@ -103,32 +102,21 @@ function Section({
   tone: Tone;
   icon: JSX.Element;
   children: ReactNode;
-  fontScale: number;
   cardSpacing: number;
 }) {
   const palette = PALETTES[tone];
-  const headingSize = Math.max(2.4, 2.4 * fontScale);
-  const subtitleSize = Math.max(1.1, 1.1 * fontScale);
-  const badgeSize = Math.max(0.65, 0.7 * fontScale);
 
   return (
     <section
       className={`flex h-full flex-col gap-6 rounded-[28px] border p-6 shadow-lg ${palette.accent} ${palette.background}`}
     >
       <header className="flex flex-col gap-3 text-center">
-        <div
-          className="mx-auto inline-flex items-center gap-2 rounded-full bg-white px-4 py-1 font-semibold uppercase tracking-[0.3em] text-slate-500"
-          style={{ fontSize: `${badgeSize}rem` }}
-        >
+        <div className="mx-auto inline-flex items-center gap-2 rounded-full bg-white px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
           {icon}
           {title}
         </div>
-        <h2 className="font-black text-slate-900" style={{ fontSize: `${headingSize}rem`, lineHeight: 1.1 }}>
-          {title}
-        </h2>
-        <p className="font-medium text-slate-500" style={{ fontSize: `${subtitleSize}rem` }}>
-          {subtitle}
-        </p>
+        <h2 className="text-3xl font-black text-slate-900 md:text-4xl lg:text-5xl">{title}</h2>
+        <p className="text-sm font-medium text-slate-500 md:text-base lg:text-lg">{subtitle}</p>
       </header>
       <div className="flex flex-col" style={{ gap: `${cardSpacing}px` }}>
         {children}
@@ -139,26 +127,24 @@ function Section({
 
 function OrderRow({ order, tone, fontScale }: { order: Order; tone: Tone; fontScale: number }) {
   const palette = PALETTES[tone];
-  const idSizeRem = Math.max(2.2, 2.4 * fontScale);
-  const badgeSizeRem = Math.max(4.5, 5 * fontScale);
-  const nameSizeRem = Math.max(1.8, 2.1 * fontScale);
-
-  const badgeStyle = {
-    width: `${badgeSizeRem}rem`,
-    height: `${badgeSizeRem}rem`,
-    fontSize: `${idSizeRem}rem`,
-  };
+  const nameSizeRem = Math.max(2.2, 2.5 * fontScale);
+  const badgeHeightRem = Math.max(3.6, 4.2 * fontScale);
+  const badgeWidthRem = Math.max(7.5, 8.5 * fontScale);
+  const badgeFontRem = Math.max(2.4, 2.8 * fontScale);
 
   return (
     <article className="flex flex-col gap-3 rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-center gap-3">
-        <div className={`flex items-center justify-center rounded-2xl font-black ${palette.id}`} style={badgeStyle}>
+        <div
+          className={`flex items-center justify-center rounded-2xl font-black ${palette.id}`}
+          style={{ width: `${badgeWidthRem}rem`, height: `${badgeHeightRem}rem`, fontSize: `${badgeFontRem}rem` }}
+        >
           {order.id}
         </div>
         <div className="flex min-w-0 flex-1">
           <span
             className="break-words font-extrabold text-slate-900"
-            style={{ fontSize: `${nameSizeRem}rem`, lineHeight: 1.1 }}
+            style={{ fontSize: `${nameSizeRem}rem`, lineHeight: 1.08 }}
           >
             {order.cliente_nome || "Cliente"}
           </span>
@@ -271,7 +257,6 @@ export default function TV() {
             subtitle="Pedidos que a cozinha está finalizando"
             tone="warm"
             icon={<ProductionIcon className="h-4 w-4" />}
-            fontScale={settings.fontScale}
             cardSpacing={settings.cardSpacing}
           >
             {pedidosProducao.length > 0 ? (
@@ -295,7 +280,6 @@ export default function TV() {
             subtitle="Pedidos liberados para os clientes"
             tone="fresh"
             icon={<ReadyIcon className="h-4 w-4" />}
-            fontScale={settings.fontScale}
             cardSpacing={settings.cardSpacing}
           >
             {pedidosProntos.length > 0 ? (
