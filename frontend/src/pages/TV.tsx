@@ -13,22 +13,23 @@ const READY_STATUS = "pronto";
 
 type Tone = "warm" | "fresh";
 
-type Palette = {
-  badge: string;
-  id: string;
-  accent: string;
-};
-
-const PALETTES: Record<Tone, Palette> = {
+const PALETTES: Record<
+  Tone,
+  {
+    id: string;
+    accent: string;
+    background: string;
+  }
+> = {
   warm: {
-    badge: "border-amber-400 bg-amber-50 text-amber-700",
     id: "bg-gradient-to-br from-amber-500/15 via-amber-400/10 to-amber-500/0 text-amber-800",
     accent: "border-amber-200",
+    background: "bg-white",
   },
   fresh: {
-    badge: "border-emerald-400 bg-emerald-50 text-emerald-700",
     id: "bg-gradient-to-br from-emerald-500/15 via-emerald-400/10 to-emerald-500/0 text-emerald-800",
     accent: "border-emerald-200",
+    background: "bg-white",
   },
 };
 
@@ -89,7 +90,9 @@ function Section({
   const palette = PALETTES[tone];
 
   return (
-    <section className={`flex flex-col gap-6 rounded-[28px] border bg-white/95 p-6 shadow-lg ${palette.accent}`}>
+    <section
+      className={`flex h-full flex-col gap-6 rounded-[28px] border p-6 shadow-lg ${palette.accent} ${palette.background}`}
+    >
       <header className="flex flex-col gap-3 text-center">
         <div className="mx-auto inline-flex items-center gap-2 rounded-full bg-white px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
           {icon}
@@ -110,11 +113,8 @@ function OrderRow({ order, tone }: { order: Order; tone: Tone }) {
     <article className="flex flex-col gap-3 rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-center gap-3">
         <div className={`flex h-20 w-20 items-center justify-center rounded-2xl text-3xl font-black ${palette.id}`}>{order.id}</div>
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex min-w-0 flex-1">
           <span className="break-words text-2xl font-extrabold text-slate-900 md:text-3xl">{order.cliente_nome || "Cliente"}</span>
-          <span className={`w-fit rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] ${palette.badge}`}>
-            {order.status}
-          </span>
         </div>
       </div>
     </article>
@@ -163,33 +163,37 @@ export default function TV() {
   const pedidosProntos = useMemo(() => prontos, [prontos]);
 
   return (
-    <div className="min-h-screen w-full bg-[#f7f3ee] px-6 py-10 font-burger text-slate-900 md:px-10">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
-        <Section
-          title="Em produção"
-          subtitle="Pedidos que a cozinha está finalizando"
-          tone="warm"
-          icon={<ProductionIcon className="h-4 w-4" />}
-        >
-          {pedidosProducao.length > 0 ? (
-            pedidosProducao.map((order) => <OrderRow key={order.id} order={order} tone="warm" />)
-          ) : (
-            <EmptyState icon={<ProductionIcon className="h-6 w-6 text-amber-500" />} message="Nenhum pedido em produção agora." />
-          )}
-        </Section>
+    <div className="min-h-screen w-full bg-[#f7f3ee] px-4 py-10 font-burger text-slate-900 md:px-8 lg:px-12">
+      <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-3 lg:gap-8">
+        <div className="flex flex-col gap-6 lg:col-span-1">
+          <Section
+            title="Em produção"
+            subtitle="Pedidos que a cozinha está finalizando"
+            tone="warm"
+            icon={<ProductionIcon className="h-4 w-4" />}
+          >
+            {pedidosProducao.length > 0 ? (
+              pedidosProducao.map((order) => <OrderRow key={order.id} order={order} tone="warm" />)
+            ) : (
+              <EmptyState icon={<ProductionIcon className="h-6 w-6 text-amber-500" />} message="Nenhum pedido em produção agora." />
+            )}
+          </Section>
+        </div>
 
-        <Section
-          title="Prontos para retirada"
-          subtitle="Pedidos liberados para os clientes"
-          tone="fresh"
-          icon={<ReadyIcon className="h-4 w-4" />}
-        >
-          {pedidosProntos.length > 0 ? (
-            pedidosProntos.map((order) => <OrderRow key={order.id} order={order} tone="fresh" />)
-          ) : (
-            <EmptyState icon={<ReadyIcon className="h-6 w-6 text-emerald-500" />} message="Nenhum pedido pronto no momento." />
-          )}
-        </Section>
+        <div className="flex flex-col gap-6 lg:col-span-2">
+          <Section
+            title="Prontos para retirada"
+            subtitle="Pedidos liberados para os clientes"
+            tone="fresh"
+            icon={<ReadyIcon className="h-4 w-4" />}
+          >
+            {pedidosProntos.length > 0 ? (
+              pedidosProntos.map((order) => <OrderRow key={order.id} order={order} tone="fresh" />)
+            ) : (
+              <EmptyState icon={<ReadyIcon className="h-6 w-6 text-emerald-500" />} message="Nenhum pedido pronto no momento." />
+            )}
+          </Section>
+        </div>
       </div>
     </div>
   );
