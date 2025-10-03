@@ -164,8 +164,8 @@ export default function TV() {
 
   return (
     <div className="min-h-screen w-full bg-[#f7f3ee] px-4 py-10 font-burger text-slate-900 md:px-8 lg:px-12">
-      <div className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-3 lg:gap-8">
-        <div className="flex flex-col gap-6 lg:col-span-1">
+      <div className="mx-auto grid w-full max-w-[1600px] gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <div className="flex flex-col gap-8">
           <Section
             title="Em produção"
             subtitle="Pedidos que a cozinha está finalizando"
@@ -180,7 +180,7 @@ export default function TV() {
           </Section>
         </div>
 
-        <div className="flex flex-col gap-6 lg:col-span-2">
+        <div className="flex flex-col gap-8">
           <Section
             title="Prontos para retirada"
             subtitle="Pedidos liberados para os clientes"
