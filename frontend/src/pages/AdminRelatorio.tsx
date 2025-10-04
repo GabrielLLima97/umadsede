@@ -491,25 +491,30 @@ function LineChart({
         <path d={pathD} fill="none" stroke="#059669" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
         {points.map((point) => (
           <g key={point.timestamp}>
-            <circle cx={point.x} cy={point.y} r={6} fill="#10b981" stroke="#ecfdf5" strokeWidth={3}>
-              <title>{`${point.label} • ${brl.format(point.total)}`}</title>
-            </circle>
+            {point.total > 0 && (
+              <>
+                <circle cx={point.x} cy={point.y} r={6} fill="#10b981" stroke="#ecfdf5" strokeWidth={3}>
+                  <title>{`${point.label} • ${brl.format(point.total)}`}</title>
+                </circle>
+                <text
+                  x={point.x}
+                  y={point.y - 12}
+                  textAnchor="middle"
+                  fontSize={12}
+                  fontWeight={600}
+                  fill="#0f172a"
+                >
+                  {brl.format(point.total)}
+                </text>
+              </>
+            )}
             <text
               x={point.x}
-              y={point.y - 12}
-              textAnchor="middle"
-              fontSize={12}
-              fontWeight={600}
-              fill="#0f172a"
-            >
-              {brl.format(point.total)}
-            </text>
-            <text
-              x={point.x}
-              y={baselineY + 18}
-              textAnchor="middle"
-              fontSize={12}
+              y={baselineY + 28}
+              textAnchor="end"
+              fontSize={11}
               fill="#64748b"
+              transform={`rotate(-90 ${point.x} ${baselineY + 28})`}
             >
               {point.label}
             </text>
