@@ -6,6 +6,7 @@ export default function Cozinha(){
   const [dados,setDados]=useState<any[]>([]);
   const [itemsMap,setItemsMap]=useState<Record<number,{categoria?:string}>>({});
   const [now,setNow]=useState<number>(Date.now());
+  const [mostrarAntecipados, setMostrarAntecipados] = useState(true);
 
   const carregar = async ()=>{
     const [orders, items] = await Promise.all([
@@ -32,8 +33,11 @@ export default function Cozinha(){
   },[]);
 
   const update = (id:number, status:string)=> api.patch(`/orders/${id}/status/`,{status}).then(carregar);
+  const toggleAntecipado = (id:number, value:boolean) =>
+    api.patch(`/orders/${id}/antecipado/`, { antecipado: value }).then(carregar);
 
-  const col = (s:string)=> dados.filter(p=>p.status===s);
+  const fonte = mostrarAntecipados ? dados : dados.filter((p)=> !p.antecipado);
+  const col = (s:string)=> fonte.filter(p=>p.status===s);
   const sortByCreated = (arr:any[]) =>
     [...arr].sort((a,b)=> new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   const nextOf:any = {"pago":"a preparar","a preparar":"em produção","em produção":"pronto","pronto":"finalizado","finalizado":"finalizado"};
@@ -41,9 +45,17 @@ export default function Cozinha(){
 
   return (
     <div className="flex flex-col gap-4 w-full">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-2xl font-black">Cozinha</div>
-        <button className="btn btn-ghost" onClick={carregar}>Atualizar</button>
+        <div className="flex items-center gap-2">
+          <button
+            className="btn btn-ghost"
+            onClick={() => setMostrarAntecipados((prev) => !prev)}
+          >
+            {mostrarAntecipados ? "Ocultar antecipados" : "Mostrar antecipados"}
+          </button>
+          <button className="btn btn-ghost" onClick={carregar}>Atualizar</button>
+        </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div>
@@ -61,6 +73,7 @@ export default function Cozinha(){
                 onPrev={()=>update(p.id, prevOf[p.status])}
                 // Avança diretamente de "pago" ou "a preparar" para "em produção" com um clique
                 onNext={()=>update(p.id, "em produção")}
+                onToggleAntecipado={(value)=>toggleAntecipado(p.id, value)}
               />
             ))}
           </div>
@@ -73,7 +86,15 @@ export default function Cozinha(){
           </div>
           <div className="flex flex-col gap-3">
             {sortByCreated(col("em produção")).map(p=>(
-              <OrderCard key={p.id} p={p} itemsMap={itemsMap} now={now} onPrev={()=>update(p.id, prevOf[p.status])} onNext={()=>update(p.id, nextOf[p.status])} />
+              <OrderCard
+                key={p.id}
+                p={p}
+                itemsMap={itemsMap}
+                now={now}
+                onPrev={()=>update(p.id, prevOf[p.status])}
+                onNext={()=>update(p.id, nextOf[p.status])}
+                onToggleAntecipado={(value)=>toggleAntecipado(p.id, value)}
+              />
             ))}
           </div>
         </div>
@@ -85,7 +106,15 @@ export default function Cozinha(){
           </div>
           <div className="flex flex-col gap-3">
             {sortByCreated(col("pronto")).map(p=>(
-              <OrderCard key={p.id} p={p} itemsMap={itemsMap} now={now} onPrev={()=>update(p.id, prevOf[p.status])} onNext={()=>update(p.id, nextOf[p.status])} />
+              <OrderCard
+                key={p.id}
+                p={p}
+                itemsMap={itemsMap}
+                now={now}
+                onPrev={()=>update(p.id, prevOf[p.status])}
+                onNext={()=>update(p.id, nextOf[p.status])}
+                onToggleAntecipado={(value)=>toggleAntecipado(p.id, value)}
+              />
             ))}
           </div>
         </div>

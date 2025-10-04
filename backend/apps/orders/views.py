@@ -247,11 +247,13 @@ class PedidoView(viewsets.ModelViewSet):
         # normalização simples de WA: manter dígitos
         waid = "".join([c for c in waid if c.isdigit()])
 
-        precisa_embalagem = data.get("precisa_embalagem", False)
-        if isinstance(precisa_embalagem, str):
-            precisa_embalagem = precisa_embalagem.strip().lower() in {"1", "true", "t", "sim", "yes"}
-        else:
-            precisa_embalagem = bool(precisa_embalagem)
+        def to_bool(value):
+            if isinstance(value, str):
+                return value.strip().lower() in {"1", "true", "t", "sim", "yes"}
+            return bool(value)
+
+        precisa_embalagem = to_bool(data.get("precisa_embalagem", False))
+        antecipado_flag = to_bool(data.get("antecipado", False))
 
         # Carregar itens por sku ou id e validar estoque
         items_map_by_sku = {it.sku: it for it in Item.objects.all()}
@@ -289,6 +291,7 @@ class PedidoView(viewsets.ModelViewSet):
                 meio_pagamento=(data.get("meio_pagamento") or "Mercado Pago"),
                 observacoes=(data.get("observacoes") or ""),
                 precisa_embalagem=precisa_embalagem,
+                antecipado=antecipado_flag,
             )
             from .models import PedidoItem as PI
             for it in pedido_itens:
@@ -337,6 +340,30 @@ class PedidoView(viewsets.ModelViewSet):
         except Exception:
             pass
         return Response({"ok": True, "de": de, "para": pedido.status})
+
+    @action(detail=True, methods=["patch"], url_path="antecipado")
+    def set_antecipado(self, request, pk=None):
+        require_dashboard_user(request, routes=["cozinha", "vendas"])
+        pedido = self.get_object()
+        value = request.data.get("antecipado")
+        if isinstance(value, str):
+            value = value.strip().lower() in {"1", "true", "t", "sim", "yes"}
+        else:
+            value = bool(value)
+
+        pedido.antecipado = value
+        pedido.save(update_fields=["antecipado"])
+
+        try:
+            layer = get_channel_layer()
+            async_to_sync(layer.group_send)(
+                "orders",
+                {"type": "orders.event", "data": {"event": "order_updated", "id": pedido.id, "antecipado": pedido.antecipado}},
+            )
+        except Exception:
+            pass
+
+        return Response({"ok": True, "antecipado": pedido.antecipado})
 
 
 class CategoryOrderView(viewsets.ModelViewSet):

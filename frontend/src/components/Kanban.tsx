@@ -18,12 +18,20 @@ const parseBoolean = (value: unknown) => {
 };
 
 // Novo card de pedido, com agrupamento por categoria e navegação prev/next/seleção direta
-export function OrderCard({p, itemsMap, now, onPrev, onNext}:{
+export function OrderCard({
+  p,
+  itemsMap,
+  now,
+  onPrev,
+  onNext,
+  onToggleAntecipado,
+}:{
   p:any;
   itemsMap: Record<number, {categoria?:string}>;
   now: number;
   onPrev: ()=>void;
   onNext: ()=>void;
+  onToggleAntecipado?: (value: boolean) => void;
 }){
   const ORDER = ["pago","a preparar","em produção","pronto","finalizado"] as const;
   const groups:Record<string, any[]> = {};
@@ -35,6 +43,7 @@ export function OrderCard({p, itemsMap, now, onPrev, onNext}:{
   const cats = Object.keys(groups).sort((a,b)=> a.localeCompare(b));
   const { text, overSla } = elapsedInfo(p.created_at, now);
   const precisaEmbalagem = parseBoolean(p.precisa_embalagem);
+  const antecipado = parseBoolean(p.antecipado);
   const embalagemColor = precisaEmbalagem ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600";
   const embalagemTexto = precisaEmbalagem ? "Com embalagem" : "Sem embalagem";
   return (
@@ -46,6 +55,15 @@ export function OrderCard({p, itemsMap, now, onPrev, onNext}:{
         </div>
         <div className="flex items-center gap-2">
           <Badge text={embalagemTexto} color={embalagemColor} />
+          <label className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${antecipado ? "border-amber-300 bg-amber-100 text-amber-700" : "border-slate-200 bg-white text-slate-500"}`}>
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-amber-500"
+              checked={antecipado}
+              onChange={(event) => onToggleAntecipado?.(event.target.checked)}
+            />
+            Antecipado
+          </label>
           <div className={`text-sm font-black ${overSla?"text-rose-600":"text-slate-500"}`}>{text} {overSla?"• SLA":""}</div>
         </div>
       </div>

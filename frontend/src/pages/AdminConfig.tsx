@@ -537,10 +537,11 @@ export function ConfigMonitoringPage() {
   }, [historyPoints]);
 
   const historyLoading = historyQuery.isLoading && historyPoints.length === 0;
-  const displayPeak = historyStats?.peak ?? summaryTotals?.active_total ?? activeTotalNow;
+  const fallbackTotal = Number(summaryTotals?.active_total ?? activeTotalNow ?? 0);
+  const displayPeak = historyStats?.peak ?? fallbackTotal;
   const displayAverage = historyStats
     ? historyStats.average.toFixed(1)
-    : (summaryTotals?.active_total ?? activeTotalNow).toFixed(1);
+    : fallbackTotal.toFixed(1);
 
   return (
     <div className="flex flex-col gap-6">
