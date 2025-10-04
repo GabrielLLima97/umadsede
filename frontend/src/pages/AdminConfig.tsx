@@ -698,7 +698,7 @@ export function ConfigMonitoringPage() {
 export function ConfigResetPage() {
   const pushToast = useToast((state) => state.push);
   const [confirmText, setConfirmText] = useState("");
-  const [selectedOrders, setSelectedOrders] = useState<Set<number>>(new Set());
+  const [selectedOrders, setSelectedOrders] = useState<Set<number>>(() => new Set());
 
   const resetMutation = useMutation({
     mutationFn: async ({ confirm }: { confirm: string }) => {
@@ -753,7 +753,7 @@ export function ConfigResetPage() {
     },
     onSuccess: (ids) => {
       pushToast({ type: "success", message: `${ids.length} pedido(s) removido(s) com sucesso.` });
-      setSelectedOrders(new Set());
+      setSelectedOrders(() => new Set());
       ordersQuery.refetch();
     },
     onError: (error: any) => {
@@ -773,10 +773,10 @@ export function ConfigResetPage() {
 
   const selectAll = () => {
     const data = ordersQuery.data || [];
-    setSelectedOrders(new Set(data.map((order) => order.id)));
+    setSelectedOrders(() => new Set(data.map((order) => order.id)));
   };
 
-  const clearSelection = () => setSelectedOrders(new Set());
+  const clearSelection = () => setSelectedOrders(() => new Set());
 
   const handleDeleteSelected = () => {
     if (!selectedOrders.size) {
