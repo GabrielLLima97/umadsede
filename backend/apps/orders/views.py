@@ -79,7 +79,7 @@ def fetch_presence_windows(kind: str):
             data = json.loads(raw)
         except (ValueError, TypeError):
             continue
-        start_dt = parse_to_aware(data.get("timestamp"))
+        start_dt = parse_to_aware(data.get("first_seen") or data.get("timestamp"))
         ttl = data.get("ttl")
         expires_dt = parse_to_aware(data.get("expires_at"))
         if not expires_dt and ttl and start_dt:
@@ -102,6 +102,34 @@ def parse_to_aware(value):
     if timezone.is_naive(dt):
         dt = timezone.make_aware(dt, timezone=timezone.utc)
     return dt
+
+
+def store_presence_sample(timestamp, admins: int, clients: int, tokens: int):
+    try:
+        client = get_redis_client()
+    except Exception:
+        return
+
+    minute = timestamp.replace(second=0, microsecond=0).isoformat()
+    entry = json.dumps({
+        "timestamp": minute,
+        "admins": int(admins),
+        "clients": int(clients),
+        "tokens": int(tokens),
+        "total": int(admins) + int(clients),
+    })
+
+    try:
+        last = client.lindex("presence:samples", 0)
+        if last:
+            last_data = json.loads(last)
+            if last_data.get("timestamp") == minute:
+                client.lset("presence:samples", 0, entry)
+                return
+        client.lpush("presence:samples", entry)
+        client.ltrim("presence:samples", 0, 720)
+    except Exception:
+        pass
 
 class ItemView(viewsets.ModelViewSet):
     serializer_class = ItemSerializer
@@ -512,6 +540,8 @@ def admin_metrics(request):
     if load_avg:
         instance["load_avg"] = load_avg
 
+    store_presence_sample(now, active_admins, active_clients, active_tokens)
+
     return Response({
         "timestamp": now,
         "systems": systems,
@@ -549,9 +579,45 @@ def admin_metrics_history(request):
 
     client_windows = fetch_presence_windows("client")
 
+    sample_map = {}
+    try:
+        client = get_redis_client()
+        raw_samples = client.lrange("presence:samples", 0, 720)
+        for raw in raw_samples:
+            if not raw:
+                continue
+            try:
+                data = json.loads(raw)
+            except (ValueError, TypeError):
+                continue
+            ts = parse_to_aware(data.get("timestamp"))
+            if not ts:
+                continue
+            sample_map[ts.replace(second=0, microsecond=0)] = {
+                "admins": int(data.get("admins") or 0),
+                "clients": int(data.get("clients") or 0),
+                "tokens": int(data.get("tokens") or data.get("admins") or 0),
+                "total": int(data.get("total") or 0),
+            }
+    except Exception:
+        sample_map = {}
+
     points = []
     for index in range(minutes):
         point_time = start + timedelta(minutes=index)
+        sample = sample_map.get(point_time)
+        if sample:
+            points.append(
+                {
+                    "timestamp": point_time,
+                    "active_users": sample.get("admins", 0),
+                    "active_tokens": sample.get("tokens", sample.get("admins", 0)),
+                    "active_clients": sample.get("clients", 0),
+                    "active_total": sample.get("total", sample.get("admins", 0) + sample.get("clients", 0)),
+                }
+            )
+            continue
+
         active_tokens = 0
         active_users = set()
         for token in tokens:
@@ -662,17 +728,30 @@ def register_presence(request):
         ttl = 90
     ttl = max(30, min(300, ttl))
 
+    now_dt = timezone.now()
+    now_iso = now_dt.isoformat()
+
     payload = {
         "source": source,
         "ip": request.META.get("REMOTE_ADDR", ""),
         "user_agent": request.META.get("HTTP_USER_AGENT", "")[:255],
-        "timestamp": timezone.now().isoformat(),
-        "expires_at": (timezone.now() + timedelta(seconds=ttl)).isoformat(),
+        "timestamp": now_iso,
+        "expires_at": (now_dt + timedelta(seconds=ttl)).isoformat(),
         "ttl": ttl,
     }
 
     try:
         client = get_redis_client()
+        existing_raw = client.get(f"presence:{source}:{session_id}")
+        if existing_raw:
+            try:
+                existing = json.loads(existing_raw)
+                payload["first_seen"] = existing.get("first_seen") or existing.get("timestamp") or now_iso
+            except (ValueError, TypeError):
+                payload["first_seen"] = now_iso
+        else:
+            payload["first_seen"] = now_iso
+
         client.setex(f"presence:{source}:{session_id}", ttl, json.dumps(payload))
     except Exception as exc:
         return Response({"detail": f"Erro ao registrar presença: {exc}"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)

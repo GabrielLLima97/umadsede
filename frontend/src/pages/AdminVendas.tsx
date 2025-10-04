@@ -20,6 +20,14 @@ const DEFAULT_CATEGORY_PRIORITY: Record<string, number> = {
   bebidas: 2,
 };
 
+const parseCurrencyInput = (value: string): number => {
+  if (!value) return 0;
+  const normalized = value.replace(/[^0-9,\.]/g, "").replace(/,(?=\d{3}(?:\D|$))/g, "");
+  const withDot = normalized.replace(",", ".");
+  const num = Number(withDot);
+  return Number.isFinite(num) ? num : 0;
+};
+
 export default function AdminVendas(){
   const [items, setItems] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -33,7 +41,16 @@ export default function AdminVendas(){
   const [precisaEmbalagem,setPrecisaEmbalagem]=useState(false);
   const [confirmOpen,setConfirmOpen]=useState(false);
   const [enviando,setEnviando]=useState(false);
-  const [successInfo,setSuccessInfo]=useState<{ id?: number; cliente?: string; pagamento?: string; embalagem?: boolean; total?: number }>({});
+  const [valorRecebido, setValorRecebido] = useState<string>("");
+  const [successInfo,setSuccessInfo]=useState<{
+    id?: number;
+    cliente?: string;
+    pagamento?: string;
+    embalagem?: boolean;
+    total?: number;
+    recebido?: number;
+    troco?: number;
+  }>({});
 
   useEffect(()=>{
     const load = async ()=>{
@@ -80,11 +97,16 @@ export default function AdminVendas(){
   const handleFinalizeClick = ()=>{
     if(cart.items.length===0) return;
     if(!nome.trim()) { alert("O nome do cliente é obrigatório."); return; }
+    if (metodo === "Dinheiro" && !valorRecebido) {
+      setValorRecebido(total > 0 ? total.toFixed(2) : "");
+    }
     setConfirmOpen(true);
   };
 
   const confirmarEnvio = async ()=>{
     if(enviando) return;
+    const recebidoValor = metodo === "Dinheiro" ? parseCurrencyInput(valorRecebido || "0") : total;
+    const troco = metodo === "Dinheiro" ? Math.max(recebidoValor - total, 0) : 0;
     const payload = {
       cliente_nome: nome||"Balcão",
       cliente_waid: (waid||"").replace(/\D/g, ""),
@@ -100,7 +122,15 @@ export default function AdminVendas(){
       cart.clear();
       const precisaFromResponse = p.data?.precisa_embalagem;
       const precisaNormalizada = typeof precisaFromResponse === "undefined" ? precisaEmbalagem : parseBoolean(precisaFromResponse);
-      setSuccessInfo({ id: p.data.id, cliente: nome||"Balcão", pagamento: metodo, embalagem: precisaNormalizada, total });
+      setSuccessInfo({
+        id: p.data.id,
+        cliente: nome||"Balcão",
+        pagamento: metodo,
+        embalagem: precisaNormalizada,
+        total,
+        recebido: recebidoValor,
+        troco,
+      });
       setConfirmOpen(false);
       setPrecisaEmbalagem(false);
     } catch(e:any){
@@ -121,6 +151,7 @@ export default function AdminVendas(){
     setSuccessInfo({});
     setConfirmOpen(false);
     setEnviando(false);
+    setValorRecebido("");
   };
 
   return (
@@ -203,6 +234,26 @@ export default function AdminVendas(){
             <div><span className="font-bold">Pagamento:</span> {metodo}</div>
             <div><span className="font-bold">Embalagem:</span> {precisaEmbalagem ? "Sim" : "Não"}</div>
             <div><span className="font-bold">Total:</span> {brl.format(total)}</div>
+            {metodo === "Dinheiro" && (
+              <div className="mt-2 space-y-2">
+                <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+                  Valor recebido (R$)
+                  <input
+                    className="input"
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    value={valorRecebido}
+                    onChange={(e) => setValorRecebido(e.target.value)}
+                  />
+                </label>
+                <div className="text-xs text-slate-500">
+                  Troco: <span className="font-bold text-emerald-700">{brl.format(Math.max(parseCurrencyInput(valorRecebido || "0") - total, 0))}</span>
+                </div>
+                {parseCurrencyInput(valorRecebido || "0") < total && (
+                  <div className="text-xs font-semibold text-rose-600">O valor recebido está abaixo do total.</div>
+                )}
+              </div>
+            )}
           </div>
           <div className="mt-4 flex justify-end gap-2">
             <button type="button" className="btn" onClick={()=>setConfirmOpen(false)}>Cancelar</button>
@@ -210,7 +261,9 @@ export default function AdminVendas(){
               type="button"
               className={`btn btn-primary ${enviando?"loading":""}`}
               onClick={confirmarEnvio}
-              disabled={enviando}
+              disabled={
+                enviando || (metodo === "Dinheiro" && parseCurrencyInput(valorRecebido || "0") < total)
+              }
             >
               Confirmar e enviar
             </button>
@@ -227,8 +280,13 @@ export default function AdminVendas(){
           <div className="mt-4 text-xs font-bold uppercase text-slate-500 tracking-wide">Código do pedido</div>
           <div className="text-5xl font-black text-slate-900 mt-2">#{successInfo.id}</div>
           <div className="mt-3 text-sm text-slate-700">Cliente: <span className="font-bold">{successInfo.cliente}</span></div>
-          <div className="text-sm text-slate-700">Pagamento: <span className="font-bold">{successInfo.pagamento}</span></div>
-          <div className="text-sm text-slate-700">Total: <span className="font-bold">{brl.format(successInfo.total || 0)}</span></div>
+         <div className="text-sm text-slate-700">Pagamento: <span className="font-bold">{successInfo.pagamento}</span></div>
+         <div className="text-sm text-slate-700">Total: <span className="font-bold">{brl.format(successInfo.total || 0)}</span></div>
+          {successInfo.pagamento === "Dinheiro" && (
+            <div className="text-sm text-slate-700">
+              Troco: <span className="font-bold">{brl.format(successInfo.troco || 0)}</span>
+            </div>
+          )}
           <div className="text-sm text-slate-700">Embalagem: <span className="font-bold">{successInfo.embalagem ? "Sim" : "Não"}</span></div>
           <div className="mt-4 flex gap-2">
             <button type="button" className="btn btn-primary" onClick={resetar}>Novo pedido</button>
@@ -239,3 +297,8 @@ export default function AdminVendas(){
     </>
   );
 }
+  useEffect(() => {
+    if (metodo !== "Dinheiro") {
+      setValorRecebido("");
+    }
+  }, [metodo]);

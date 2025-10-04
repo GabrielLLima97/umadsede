@@ -59,6 +59,7 @@ type MetricsHistoryPoint = {
   timestamp: string;
   active_users: number;
   active_tokens: number;
+  active_clients?: number;
   active_total?: number;
 };
 
@@ -506,6 +507,7 @@ export function ConfigMonitoringPage() {
   const activeAdmins = metrics?.connections?.active_users ?? historyQuery.data?.summary?.active_admins ?? 0;
   const activeClients = metrics?.connections?.active_clients ?? historyQuery.data?.summary?.active_clients ?? 0;
   const activeTotalNow = metrics?.connections?.active_total ?? activeAdmins + activeClients;
+  const summaryTotals = historyQuery.data?.summary;
 
   const memoryHelper =
     metrics?.instance?.memory_used !== undefined && metrics?.instance?.memory_total !== undefined
@@ -535,6 +537,10 @@ export function ConfigMonitoringPage() {
   }, [historyPoints]);
 
   const historyLoading = historyQuery.isLoading && historyPoints.length === 0;
+  const displayPeak = historyStats?.peak ?? summaryTotals?.active_total ?? activeTotalNow;
+  const displayAverage = historyStats
+    ? historyStats.average.toFixed(1)
+    : (summaryTotals?.active_total ?? activeTotalNow).toFixed(1);
 
   return (
     <div className="flex flex-col gap-6">
@@ -609,7 +615,7 @@ export function ConfigMonitoringPage() {
           </div>
         )}
         <div className="grid gap-4 text-sm text-slate-600 sm:grid-cols-3">
-         <div className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3">
+          <div className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Agora</div>
             <div className="text-2xl font-black text-slate-900">{activeTotalNow}</div>
             <div className="text-xs text-slate-500">Conexões ativas agora</div>
@@ -617,12 +623,12 @@ export function ConfigMonitoringPage() {
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Pico</div>
-            <div className="text-2xl font-black text-slate-900">{historyStats ? historyStats.peak : "--"}</div>
+            <div className="text-2xl font-black text-slate-900">{displayPeak}</div>
             <div className="text-xs text-slate-500">Maior simultaneidade no período</div>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Média</div>
-            <div className="text-2xl font-black text-slate-900">{historyStats ? historyStats.average.toFixed(1) : "--"}</div>
+            <div className="text-2xl font-black text-slate-900">{displayAverage}</div>
             <div className="text-xs text-slate-500">Conexões por minuto</div>
           </div>
         </div>

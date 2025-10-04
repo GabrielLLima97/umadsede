@@ -64,10 +64,8 @@ export default function ProductDetailSheet({ item, open, onClose }: Props) {
                 {item.descricao && (
                   <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">{item.descricao}</p>
                 )}
-                {item.estoque_disponivel > 0 ? (
-                  <p className="text-xs font-semibold text-emerald-700">Disponibilidade: {item.estoque_disponivel} unidade(s)</p>
-                ) : (
-                  <p className="text-xs font-semibold text-rose-600">Sem estoque disponível.</p>
+                {item.estoque_disponivel <= 0 && (
+                  <p className="text-xs font-semibold text-rose-600">Sem estoque disponível no momento.</p>
                 )}
               </div>
             </Dialog.Panel>

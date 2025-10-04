@@ -61,8 +61,10 @@ const ProductCard: React.FC<Props> = ({ item, showExactStock = false, onDetails,
   const imageClasses = soldOut
     ? "h-full w-full object-cover filter grayscale contrast-75 opacity-60"
     : "h-full w-full object-cover";
-  const showDetailsButton = !!item.descricao && (compact || String(item.descricao).length > 96);
-  const descriptionClass = compact ? "mt-2 text-sm text-slate-600 line-clamp-1" : "mt-2 text-sm text-slate-600 line-clamp-2";
+  const showDetailsButton = !!item.descricao && (compact || String(item.descricao).length > 120);
+  const descriptionClass = compact
+    ? "mt-2 text-sm text-slate-600 line-clamp-1"
+    : "mt-2 text-sm text-slate-600 md:line-clamp-3";
 
   return (
     <article
@@ -95,10 +97,8 @@ const ProductCard: React.FC<Props> = ({ item, showExactStock = false, onDetails,
           {item.descricao && (
             <p className={descriptionClass}>{item.descricao}</p>
           )}
-          {!soldOut && estoqueDisponivel > 0 && (
-            <p className="mt-1 text-xs font-semibold text-emerald-700">
-              {showExactStock ? `Disponíveis: ${estoqueDisponivel}` : remaining <= 3 ? "Últimas unidades" : "Restam algumas unidades"}
-            </p>
+          {showExactStock && estoqueDisponivel > 0 && (
+            <p className="mt-1 text-xs font-semibold text-emerald-700">Disponíveis: {estoqueDisponivel}</p>
           )}
           {soldOut && qty === 0 && (
             <p className="mt-1 text-xs font-semibold text-rose-600">Este produto está indisponível no momento.</p>
