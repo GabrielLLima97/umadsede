@@ -14,20 +14,18 @@ const READY_STATUS = "pronto";
 type Tone = "warm" | "fresh";
 type TvSettings = {
   fontScale: number;
-  titleScale: number;
+  productionTitleScale: number;
+  readyTitleScale: number;
   columnRatio: number;
   cardSpacing: number;
-  productionTitle: string;
-  readyTitle: string;
 };
 
 const DEFAULT_SETTINGS: TvSettings = {
   fontScale: 1.1,
-  titleScale: 1,
+  productionTitleScale: 1,
+  readyTitleScale: 1,
   columnRatio: 0.35,
   cardSpacing: 16,
-  productionTitle: "Em produção",
-  readyTitle: "Prontos para retirada",
 };
 
 const SETTINGS_STORAGE_KEY = "tv-display-settings-v1";
@@ -240,11 +238,10 @@ export default function TV() {
       const parsed = JSON.parse(raw) as Partial<TvSettings>;
       setSettings((prev) => ({
         fontScale: clamp(parsed.fontScale ?? prev.fontScale, 0.8, 1.8),
-        titleScale: clamp(parsed.titleScale ?? prev.titleScale, 0.8, 1.5),
+        productionTitleScale: clamp(parsed.productionTitleScale ?? prev.productionTitleScale, 0.8, 1.5),
+        readyTitleScale: clamp(parsed.readyTitleScale ?? prev.readyTitleScale, 0.8, 1.5),
         columnRatio: clamp(parsed.columnRatio ?? prev.columnRatio, 0.2, 0.6),
         cardSpacing: clamp(parsed.cardSpacing ?? prev.cardSpacing, 12, 80),
-        productionTitle: typeof parsed.productionTitle === "string" && parsed.productionTitle.trim() ? parsed.productionTitle.trim() : prev.productionTitle,
-        readyTitle: typeof parsed.readyTitle === "string" && parsed.readyTitle.trim() ? parsed.readyTitle.trim() : prev.readyTitle,
       }));
     } catch (error) {
       console.warn("Não foi possível carregar as preferências da TV:", error);
@@ -281,12 +278,12 @@ export default function TV() {
       >
         <div className="flex h-full flex-col" style={{ gap: `${settings.cardSpacing}px` }}>
           <Section
-            title={settings.productionTitle || "Em produção"}
+            title="Em produção"
             subtitle="Pedidos que a cozinha está finalizando"
             tone="warm"
             icon={<ProductionIcon className="h-4 w-4" />}
             cardSpacing={settings.cardSpacing}
-            titleScale={settings.titleScale}
+            titleScale={settings.productionTitleScale}
           >
             {pedidosProducao.length > 0 ? (
               pedidosProducao.map((order) => (
@@ -305,12 +302,12 @@ export default function TV() {
 
         <div className="flex h-full flex-col" style={{ gap: `${settings.cardSpacing}px` }}>
           <Section
-            title={settings.readyTitle || "Prontos para retirada"}
+            title="Prontos para retirada"
             subtitle="Pedidos liberados para os clientes"
             tone="fresh"
             icon={<ReadyIcon className="h-4 w-4" />}
             cardSpacing={settings.cardSpacing}
-            titleScale={settings.titleScale}
+            titleScale={settings.readyTitleScale}
           >
             {pedidosProntos.length > 0 ? (
               pedidosProntos.map((order) => (
@@ -388,34 +385,6 @@ function SettingsModal({
 
         <div className="mt-6 space-y-6">
           <div className="space-y-2">
-            <label htmlFor="productionTitle" className="block text-sm font-semibold text-slate-600">
-              Título para pedidos em produção
-            </label>
-            <input
-              id="productionTitle"
-              type="text"
-              value={settings.productionTitle}
-              onChange={(event) => update({ productionTitle: event.target.value })}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
-              placeholder="Em produção"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="readyTitle" className="block text-sm font-semibold text-slate-600">
-              Título para pedidos prontos
-            </label>
-            <input
-              id="readyTitle"
-              type="text"
-              value={settings.readyTitle}
-              onChange={(event) => update({ readyTitle: event.target.value })}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
-              placeholder="Prontos para retirada"
-            />
-          </div>
-
-          <div className="space-y-2">
             <div className="flex items-center justify-between text-sm font-semibold text-slate-600">
               <label htmlFor="fontScale">Escala da fonte</label>
               <span>{Math.round(settings.fontScale * 100)}%</span>
@@ -434,17 +403,34 @@ function SettingsModal({
 
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm font-semibold text-slate-600">
-              <label htmlFor="titleScale">Escala dos títulos</label>
-              <span>{Math.round(settings.titleScale * 100)}%</span>
+              <label htmlFor="productionTitleScale">Fonte de "Em produção"</label>
+              <span>{Math.round(settings.productionTitleScale * 100)}%</span>
             </div>
             <input
-              id="titleScale"
+              id="productionTitleScale"
               type="range"
               min={0.8}
               max={1.5}
               step={0.05}
-              value={settings.titleScale}
-              onChange={(event) => update({ titleScale: Number(event.target.value) })}
+              value={settings.productionTitleScale}
+              onChange={(event) => update({ productionTitleScale: Number(event.target.value) })}
+              className="w-full accent-slate-900"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm font-semibold text-slate-600">
+              <label htmlFor="readyTitleScale">Fonte de "Prontos"</label>
+              <span>{Math.round(settings.readyTitleScale * 100)}%</span>
+            </div>
+            <input
+              id="readyTitleScale"
+              type="range"
+              min={0.8}
+              max={1.5}
+              step={0.05}
+              value={settings.readyTitleScale}
+              onChange={(event) => update({ readyTitleScale: Number(event.target.value) })}
               className="w-full accent-slate-900"
             />
           </div>
