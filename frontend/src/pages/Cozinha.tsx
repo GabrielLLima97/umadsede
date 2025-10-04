@@ -94,6 +94,8 @@ export default function Cozinha(){
         const nome = item.nome || `Item ${item.item}`;
         const quantidade = Number(item.qtd || 0);
         if (!Number.isFinite(quantidade)) return;
+        const categoria = categoriaDoItem(item);
+        if (categoriaFiltro && categoria !== categoriaFiltro) return;
         const atual = map.get(nome) || { nome, aPreparar: 0, emProducao: 0 };
         if (status === "a preparar") atual.aPreparar += quantidade;
         if (status === "em produção") atual.emProducao += quantidade;
@@ -102,7 +104,7 @@ export default function Cozinha(){
     });
 
     return Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome));
-  }, [fonte]);
+  }, [fonte, categoriaFiltro]);
 
   const totalItensAPreparar = itensParaProduzir.reduce((acc, item) => acc + item.aPreparar, 0);
   const totalItensEmProducao = itensParaProduzir.reduce((acc, item) => acc + item.emProducao, 0);
