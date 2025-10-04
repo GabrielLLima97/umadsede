@@ -34,7 +34,7 @@ export default function AdminVendas(){
   const [activeCat,setActiveCat]=useState<string>("");
   const [nome,setNome]=useState("");
   const [waid,setWaid]=useState("");
-  const [metodo,setMetodo]=useState("Dinheiro");
+  const [paymentMethod,setPaymentMethod]=useState("Dinheiro");
   const [obs,setObs]=useState("");
   const cart = useCart();
   const { total } = useCartTotals();
@@ -51,6 +51,12 @@ export default function AdminVendas(){
     recebido?: number;
     troco?: number;
   }>({});
+
+  useEffect(() => {
+    if (paymentMethod !== "Dinheiro") {
+      setValorRecebido("");
+    }
+  }, [paymentMethod]);
 
   useEffect(()=>{
     const load = async ()=>{
@@ -97,7 +103,7 @@ export default function AdminVendas(){
   const handleFinalizeClick = ()=>{
     if(cart.items.length===0) return;
     if(!nome.trim()) { alert("O nome do cliente é obrigatório."); return; }
-    if (metodo === "Dinheiro" && !valorRecebido) {
+    if (paymentMethod === "Dinheiro" && !valorRecebido) {
       setValorRecebido(total > 0 ? total.toFixed(2) : "");
     }
     setConfirmOpen(true);
@@ -105,13 +111,13 @@ export default function AdminVendas(){
 
   const confirmarEnvio = async ()=>{
     if(enviando) return;
-    const recebidoValor = metodo === "Dinheiro" ? parseCurrencyInput(valorRecebido || "0") : total;
-    const troco = metodo === "Dinheiro" ? Math.max(recebidoValor - total, 0) : 0;
+    const recebidoValor = paymentMethod === "Dinheiro" ? parseCurrencyInput(valorRecebido || "0") : total;
+    const troco = paymentMethod === "Dinheiro" ? Math.max(recebidoValor - total, 0) : 0;
     const payload = {
       cliente_nome: nome||"Balcão",
       cliente_waid: (waid||"").replace(/\D/g, ""),
       itens: cart.items.map(i=> ({ sku: i.sku, qtd: i.qtd })),
-      meio_pagamento: metodo,
+      meio_pagamento: paymentMethod,
       observacoes: obs,
       precisa_embalagem: precisaEmbalagem,
     };
@@ -125,7 +131,7 @@ export default function AdminVendas(){
       setSuccessInfo({
         id: p.data.id,
         cliente: nome||"Balcão",
-        pagamento: metodo,
+        pagamento: paymentMethod,
         embalagem: precisaNormalizada,
         total,
         recebido: recebidoValor,
@@ -146,7 +152,7 @@ export default function AdminVendas(){
     setNome("");
     setWaid("");
     setObs("");
-    setMetodo("Dinheiro");
+    setPaymentMethod("Dinheiro");
     setPrecisaEmbalagem(false);
     setSuccessInfo({});
     setConfirmOpen(false);
@@ -188,7 +194,7 @@ export default function AdminVendas(){
                 "Cartão de Débito",
                 "Pix",
               ].map(m => (
-                <button key={m} type="button" onClick={()=>setMetodo(m)} className={`btn ${metodo===m?"btn-primary":"btn-ghost"}`}>{m}</button>
+                <button key={m} type="button" onClick={()=>setPaymentMethod(m)} className={`btn ${paymentMethod===m?"btn-primary":"btn-ghost"}`}>{m}</button>
               ))}
             </div>
             <label className="text-sm font-bold">Observações</label>
@@ -231,10 +237,10 @@ export default function AdminVendas(){
           <div className="text-slate-600 text-sm">Revise os dados abaixo antes de enviar o pedido para a cozinha.</div>
           <div className="mt-4 flex flex-col gap-2 text-sm text-slate-700">
             <div><span className="font-bold">Cliente:</span> {nome || "Balcão"}</div>
-            <div><span className="font-bold">Pagamento:</span> {metodo}</div>
+            <div><span className="font-bold">Pagamento:</span> {paymentMethod}</div>
             <div><span className="font-bold">Embalagem:</span> {precisaEmbalagem ? "Sim" : "Não"}</div>
             <div><span className="font-bold">Total:</span> {brl.format(total)}</div>
-            {metodo === "Dinheiro" && (
+            {paymentMethod === "Dinheiro" && (
               <div className="mt-2 space-y-2">
                 <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
                   Valor recebido (R$)
@@ -262,7 +268,7 @@ export default function AdminVendas(){
               className={`btn btn-primary ${enviando?"loading":""}`}
               onClick={confirmarEnvio}
               disabled={
-                enviando || (metodo === "Dinheiro" && parseCurrencyInput(valorRecebido || "0") < total)
+                enviando || (paymentMethod === "Dinheiro" && parseCurrencyInput(valorRecebido || "0") < total)
               }
             >
               Confirmar e enviar
@@ -280,7 +286,7 @@ export default function AdminVendas(){
           <div className="mt-4 text-xs font-bold uppercase text-slate-500 tracking-wide">Código do pedido</div>
           <div className="text-5xl font-black text-slate-900 mt-2">#{successInfo.id}</div>
           <div className="mt-3 text-sm text-slate-700">Cliente: <span className="font-bold">{successInfo.cliente}</span></div>
-         <div className="text-sm text-slate-700">Pagamento: <span className="font-bold">{successInfo.pagamento}</span></div>
+          <div className="text-sm text-slate-700">Pagamento: <span className="font-bold">{successInfo.pagamento}</span></div>
          <div className="text-sm text-slate-700">Total: <span className="font-bold">{brl.format(successInfo.total || 0)}</span></div>
           {successInfo.pagamento === "Dinheiro" && (
             <div className="text-sm text-slate-700">
@@ -297,8 +303,3 @@ export default function AdminVendas(){
     </>
   );
 }
-  useEffect(() => {
-    if (metodo !== "Dinheiro") {
-      setValorRecebido("");
-    }
-  }, [metodo]);
