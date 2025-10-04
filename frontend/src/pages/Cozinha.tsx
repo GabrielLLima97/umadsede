@@ -15,6 +15,7 @@ export default function Cozinha(){
   const [itemsMap,setItemsMap]=useState<Record<number,{categoria?:string}>>({});
   const [now,setNow]=useState<number>(Date.now());
   const [mostrarAntecipados, setMostrarAntecipados] = useState(true);
+  const [mostrarResumoItens, setMostrarResumoItens] = useState(true);
 
   const carregar = async ()=>{
     const [orders, items] = await Promise.all([
@@ -65,7 +66,6 @@ export default function Cozinha(){
     return matchCategoria(pedido);
   });
 
-  type StatusResumo = "a preparar" | "em produção";
   const categoriasDisponiveis = useMemo(() => {
     const set = new Set<string>();
     dados.forEach((pedido: any) => {
@@ -83,31 +83,30 @@ export default function Cozinha(){
     }
   }, [categoriaFiltro, categoriasDisponiveis]);
 
-  const resumoItens = useMemo(() => {
-    const map: Record<StatusResumo, Map<string, { nome: string; qtd: number }>> = {
-      "a preparar": new Map(),
-      "em produção": new Map(),
-    };
+  type StatusResumo = "a preparar" | "em produção";
+  const itensParaProduzir = useMemo(() => {
+    const map = new Map<string, { nome: string; aPreparar: number; emProducao: number }>();
 
     fonte.forEach((pedido: any) => {
-      const statusKey = pedido.status as StatusResumo;
-      if (statusKey !== "a preparar" && statusKey !== "em produção") return;
+      const status = pedido.status as StatusResumo;
+      if (status !== "a preparar" && status !== "em produção") return;
       (pedido.itens || []).forEach((item: any) => {
         const nome = item.nome || `Item ${item.item}`;
-        const atual = map[statusKey].get(nome) || { nome, qtd: 0 };
         const quantidade = Number(item.qtd || 0);
-        map[statusKey].set(nome, { nome, qtd: atual.qtd + (Number.isFinite(quantidade) ? quantidade : 0) });
+        if (!Number.isFinite(quantidade)) return;
+        const atual = map.get(nome) || { nome, aPreparar: 0, emProducao: 0 };
+        if (status === "a preparar") atual.aPreparar += quantidade;
+        if (status === "em produção") atual.emProducao += quantidade;
+        map.set(nome, atual);
       });
     });
 
-    return {
-      aPreparar: Array.from(map["a preparar"].values()).sort((a, b) => a.nome.localeCompare(b.nome)),
-      emProducao: Array.from(map["em produção"].values()).sort((a, b) => a.nome.localeCompare(b.nome)),
-    };
+    return Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome));
   }, [fonte]);
 
-  const totalItensAPreparar = resumoItens.aPreparar.reduce((acc, item) => acc + item.qtd, 0);
-  const totalItensEmProducao = resumoItens.emProducao.reduce((acc, item) => acc + item.qtd, 0);
+  const totalItensAPreparar = itensParaProduzir.reduce((acc, item) => acc + item.aPreparar, 0);
+  const totalItensEmProducao = itensParaProduzir.reduce((acc, item) => acc + item.emProducao, 0);
+  const totalItensParaProduzir = totalItensAPreparar + totalItensEmProducao;
 
   const col = (s:string)=> fonte.filter(p=>p.status===s);
   const sortByCreated = (arr:any[]) =>
@@ -115,118 +114,142 @@ export default function Cozinha(){
   const nextOf:any = {"pago":"a preparar","a preparar":"em produção","em produção":"pronto","pronto":"finalizado","finalizado":"finalizado"};
   const prevOf:any = {"finalizado":"pronto","pronto":"em produção","em produção":"a preparar","a preparar":"pago","pago":"pago"};
 
+  const formatItensLabel = (valor: number) => (valor === 1 ? "item" : "itens");
+  const resumoTexto = totalItensParaProduzir
+    ? `${totalItensParaProduzir} ${formatItensLabel(totalItensParaProduzir)} para produzir`
+    : "Nenhum item pendente";
+
   return (
     <div className="flex flex-col gap-4 w-full">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 shadow-sm">
-          <div className="flex items-center justify-between text-sky-700">
-            <div className="flex items-center gap-2 font-black">
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.8}>
-                <path d="M3 13h18" />
-                <path d="M5 8h14l1 5-1 7H5l-1-7 1-5Z" />
-                <path d="M8 4h8" />
-              </svg>
-              <span>A preparar</span>
-            </div>
-            <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-bold text-sky-600">
-              {totalItensAPreparar === 1 ? "1 item" : `${totalItensAPreparar} itens`}
-            </span>
-          </div>
-          <ul className="mt-2 space-y-1 text-sm text-sky-700">
-            {resumoItens.aPreparar.length ? (
-              resumoItens.aPreparar.map((item) => (
-                <li key={item.nome} className="flex items-center justify-between rounded-xl bg-white/80 px-3 py-2">
-                  <span className="font-medium">{item.nome}</span>
-                  <span className="font-black text-sky-800">x{item.qtd}</span>
-                </li>
-              ))
-            ) : (
-              <li className="text-slate-500">Nenhum item pendente</li>
-            )}
-          </ul>
-        </div>
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm">
-          <div className="flex items-center justify-between text-amber-700">
-            <div className="flex items-center gap-2 font-black">
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.8}>
-                <path d="M4 7h16l-1.3 11.2a2 2 0 0 1-2 1.8H7.3a2 2 0 0 1-2-1.8L4 7Z" />
-                <path d="M9 7V5a3 3 0 1 1 6 0v2" />
-              </svg>
-              <span>Em produção</span>
-            </div>
-            <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-bold text-amber-600">
-              {totalItensEmProducao === 1 ? "1 item" : `${totalItensEmProducao} itens`}
-            </span>
-          </div>
-          <ul className="mt-2 space-y-1 text-sm text-amber-700">
-            {resumoItens.emProducao.length ? (
-              resumoItens.emProducao.map((item) => (
-                <li key={item.nome} className="flex items-center justify-between rounded-xl bg-white/80 px-3 py-2">
-                  <span className="font-medium">{item.nome}</span>
-                  <span className="font-black text-amber-800">x{item.qtd}</span>
-                </li>
-              ))
-            ) : (
-              <li className="text-slate-500">Nenhum item pendente</li>
-            )}
-          </ul>
-        </div>
-      </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-2xl font-black">Cozinha</div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600 shadow-sm">
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
-              <path d="m10.5 14.5-3 4.5h9l-3-4.5m-6-4a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0Z" />
-            </svg>
-            <input
-              value={filtroTexto}
-              onChange={(event) => setFiltroTexto(event.target.value)}
-              placeholder="Buscar por código ou nome"
-              className="bg-transparent outline-none placeholder:text-slate-400"
-            />
-          </div>
-          <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600 shadow-sm">
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
-              <path d="M4 7h16" />
-              <path d="M6 4v3" />
-              <path d="M12 4v3" />
-              <path d="M18 4v3" />
-              <path d="M6 11h12l1.5 6.5a2 2 0 0 1-2 2.5H6a2 2 0 0 1-2-2.5L6 11Z" />
-            </svg>
-            <select
-              value={categoriaFiltro}
-              onChange={(event) => setCategoriaFiltro(event.target.value)}
-              className="bg-transparent text-sm text-slate-600 outline-none"
-            >
-              <option value="">Todas as categorias</option>
-              {categoriasDisponiveis.map((categoria) => (
-                <option key={categoria} value={categoria}>
-                  {categoria}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button
-            className="btn btn-ghost inline-flex items-center gap-2"
-            onClick={() => setMostrarAntecipados((prev) => !prev)}
-          >
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
-              <path d="M5 5h14l1.4 3.5a4 4 0 0 1 .1 2.8l-1.6 4.1a4 4 0 0 1-3.7 2.6H8.8a4 4 0 0 1-3.8-2.7L3.7 11a4 4 0 0 1 .1-2.9L5 5Zm7 9v5" />
-              <path d="M9 19h6" />
-            </svg>
-            {mostrarAntecipados ? "Ocultar antecipados" : "Mostrar antecipados"}
-          </button>
-          <button className="btn btn-ghost inline-flex items-center gap-2" onClick={carregar}>
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
-              <path d="M4 4v6h6" />
-              <path d="M20 20v-6h-6" />
-              <path d="M5 13a7 7 0 0 0 12 3l2 2" />
-              <path d="M19 11a7 7 0 0 0-12-3L5 6" />
-            </svg>
-            Atualizar
-          </button>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600 shadow-sm">
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
+            <path d="m10.5 14.5-3 4.5h9l-3-4.5m-6-4a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0Z" />
+          </svg>
+          <input
+            value={filtroTexto}
+            onChange={(event) => setFiltroTexto(event.target.value)}
+            placeholder="Buscar por código ou nome"
+            className="bg-transparent outline-none placeholder:text-slate-400"
+          />
         </div>
+        <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600 shadow-sm">
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
+            <path d="M4 7h16" />
+            <path d="M6 4v3" />
+            <path d="M12 4v3" />
+            <path d="M18 4v3" />
+            <path d="M6 11h12l1.5 6.5a2 2 0 0 1-2 2.5H6a2 2 0 0 1-2-2.5L6 11Z" />
+          </svg>
+          <select
+            value={categoriaFiltro}
+            onChange={(event) => setCategoriaFiltro(event.target.value)}
+            className="bg-transparent text-sm text-slate-600 outline-none"
+          >
+            <option value="">Todas as categorias</option>
+            {categoriasDisponiveis.map((categoria) => (
+              <option key={categoria} value={categoria}>
+                {categoria}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button
+          className="btn btn-ghost inline-flex items-center gap-2"
+          onClick={() => setMostrarAntecipados((prev) => !prev)}
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
+            <path d="M5 5h14l1.4 3.5a4 4 0 0 1 .1 2.8l-1.6 4.1a4 4 0 0 1-3.7 2.6H8.8a4 4 0 0 1-3.8-2.7L3.7 11a4 4 0 0 1 .1-2.9L5 5Zm7 9v5" />
+            <path d="M9 19h6" />
+          </svg>
+          {mostrarAntecipados ? "Ocultar antecipados" : "Mostrar antecipados"}
+        </button>
+        <button className="btn btn-ghost inline-flex items-center gap-2" onClick={carregar}>
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
+            <path d="M4 4v6h6" />
+            <path d="M20 20v-6h-6" />
+            <path d="M5 13a7 7 0 0 0 12 3l2 2" />
+            <path d="M19 11a7 7 0 0 0-12-3L5 6" />
+          </svg>
+          Atualizar
+        </button>
+      </div>
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setMostrarResumoItens((prev) => !prev)}
+          className="flex w-full flex-wrap items-center justify-between gap-3 text-left"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600">
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                <path d="M20 18v-5a1 1 0 0 0-.9-1l-7.1-1.4a1 1 0 0 1-.8-1V6a1 1 0 0 0-.6-.9L6 3" />
+                <path d="M4 21v-9a1 1 0 0 1 .9-1l7.2-1.4a1 1 0 0 0 .8-1V6" />
+              </svg>
+            </div>
+            <div>
+              <div className="text-base font-black text-slate-700">Itens a produzir</div>
+              <div className="text-xs font-medium text-slate-500">{resumoTexto}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-xs font-semibold">
+            {totalItensAPreparar > 0 && (
+              <span className="rounded-full bg-sky-100 px-2 py-0.5 text-sky-700">
+                A preparar x{totalItensAPreparar}
+              </span>
+            )}
+            {totalItensEmProducao > 0 && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700">
+                Em produção x{totalItensEmProducao}
+              </span>
+            )}
+            <span className="rounded-full border border-slate-200 bg-slate-50 p-1 text-slate-500">
+              {mostrarResumoItens ? (
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                  <path d="m6 15 6-6 6 6" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              )}
+            </span>
+          </div>
+        </button>
+        {mostrarResumoItens && (
+          itensParaProduzir.length ? (
+            <ul className="mt-3 space-y-2 text-sm text-slate-700">
+              {itensParaProduzir.map((item) => (
+                <li
+                  key={item.nome}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                >
+                  <span className="font-medium">{item.nome}</span>
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+                    {item.aPreparar > 0 && (
+                      <span className="rounded-full bg-sky-100 px-2 py-0.5 text-sky-700">
+                        A preparar x{item.aPreparar}
+                      </span>
+                    )}
+                    {item.emProducao > 0 && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700">
+                        Em produção x{item.emProducao}
+                      </span>
+                    )}
+                    <span className="rounded-full bg-white px-2 py-0.5 text-slate-600">
+                      Total x{item.aPreparar + item.emProducao}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="mt-3 text-sm text-slate-500">Nenhum item pendente para produzir.</div>
+          )
+        )}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div>

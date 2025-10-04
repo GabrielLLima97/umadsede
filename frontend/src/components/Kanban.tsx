@@ -3,10 +3,23 @@ export function Badge({text, color}:{text:string, color:string}){
 }
 
 export function elapsedInfo(ts:string, now:number){
-  const ms = now - new Date(ts).getTime();
-  const m = Math.max(0, Math.floor(ms/60000));
-  const s = Math.floor((ms%60000)/1000);
-  return { text: `${m}m ${s}s`, overSla: m >= 15 };
+  const ms = Math.max(0, now - new Date(ts).getTime());
+  const totalSeconds = Math.floor(ms / 1000);
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const totalHours = Math.floor(totalMinutes / 60);
+
+  let text: string;
+  if (totalSeconds < 60) {
+    text = `${totalSeconds}s`;
+  } else if (totalHours === 0) {
+    text = `${totalMinutes}m`;
+  } else {
+    const remainingMinutes = totalMinutes % 60;
+    const minutesText = remainingMinutes.toString().padStart(2, "0");
+    text = `${totalHours}h${minutesText}m`;
+  }
+
+  return { text, overSla: totalMinutes >= 15 };
 }
 
 const parseBoolean = (value: unknown) => {
@@ -64,7 +77,7 @@ export function OrderCard({
             />
             Antecipado
           </label>
-          <div className={`text-sm font-black ${overSla?"text-rose-600":"text-slate-500"}`}>{text} {overSla?"• SLA":""}</div>
+          <div className={`text-sm font-black ${overSla?"text-rose-600":"text-slate-500"}`}>{text}</div>
         </div>
       </div>
       {typeof p.observacoes === 'string' && p.observacoes.trim() && (
