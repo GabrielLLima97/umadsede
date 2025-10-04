@@ -15,7 +15,7 @@ export default function Cozinha(){
   const [itemsMap,setItemsMap]=useState<Record<number,{categoria?:string}>>({});
   const [now,setNow]=useState<number>(Date.now());
   const [mostrarAntecipados, setMostrarAntecipados] = useState(true);
-  const [mostrarResumoItens, setMostrarResumoItens] = useState(true);
+  const [mostrarResumoItens, setMostrarResumoItens] = useState(false);
 
   const carregar = async ()=>{
     const [orders, items] = await Promise.all([

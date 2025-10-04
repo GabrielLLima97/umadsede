@@ -132,6 +132,7 @@ export default function AdminShell() {
   const { token, user, allowedRoutes, initialize, initialized, loading, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const isCozinhaRoute = location.pathname.startsWith("/admin/cozinha");
 
   useAdminPresence(Boolean(token));
 
@@ -140,6 +141,14 @@ export default function AdminShell() {
     const detach = attachAuthEventListeners();
     return () => detach();
   }, [initialize]);
+
+  useEffect(() => {
+    if (isCozinhaRoute) {
+      setSidebarCollapsed(true);
+    } else if (sidebarCollapsed) {
+      setSidebarCollapsed(false);
+    }
+  }, [isCozinhaRoute, sidebarCollapsed]);
 
   const showAdminInsights = useMemo(() => (allowedRoutes || []).includes("config"), [allowedRoutes]);
   const metrics = useAdminMetrics(showAdminInsights);
