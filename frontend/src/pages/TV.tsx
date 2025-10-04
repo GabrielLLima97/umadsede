@@ -19,9 +19,9 @@ type TvSettings = {
 };
 
 const DEFAULT_SETTINGS: TvSettings = {
-  fontScale: 1.25,
+  fontScale: 1.1,
   columnRatio: 0.35,
-  cardSpacing: 28,
+  cardSpacing: 16,
 };
 
 const SETTINGS_STORAGE_KEY = "tv-display-settings-v1";
@@ -34,17 +34,20 @@ const PALETTES: Record<
     id: string;
     accent: string;
     background: string;
+    header: string;
   }
 > = {
   warm: {
-    id: "bg-gradient-to-br from-amber-500/15 via-amber-400/10 to-amber-500/0 text-amber-800",
-    accent: "border-amber-200",
-    background: "bg-white",
+    id: "text-amber-200",
+    accent: "border-amber-300/40",
+    background: "bg-amber-500/10",
+    header: "text-amber-100",
   },
   fresh: {
-    id: "bg-gradient-to-br from-emerald-500/15 via-emerald-400/10 to-emerald-500/0 text-emerald-800",
-    accent: "border-emerald-200",
-    background: "bg-white",
+    id: "text-emerald-200",
+    accent: "border-emerald-300/40",
+    background: "bg-emerald-500/10",
+    header: "text-emerald-100",
   },
 };
 
@@ -108,17 +111,20 @@ function Section({
 
   return (
     <section
-      className={`flex h-full flex-col gap-6 rounded-[28px] border p-6 shadow-lg ${palette.accent} ${palette.background}`}
+      className={`flex h-full flex-col rounded-3xl border ${palette.accent} ${palette.background} backdrop-blur-sm`}
     >
-      <header className="flex flex-col gap-3 text-center">
-        <div className="mx-auto inline-flex items-center gap-2 rounded-full bg-white px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
-          {icon}
-          {title}
+      <header className="flex items-center justify-between gap-3 border-b border-white/5 px-4 py-3 text-left">
+        <div className="flex items-center gap-3">
+          <div className="inline-flex items-center justify-center rounded-full border border-white/20 bg-white/5 p-2 text-xs font-semibold uppercase tracking-[0.35em] text-white/80">
+            {icon}
+          </div>
+          <div className="flex flex-col leading-tight">
+            <span className={`text-xl font-black ${palette.header}`}>{title}</span>
+            <span className="text-xs font-medium text-white/60">{subtitle}</span>
+          </div>
         </div>
-        <h2 className="text-3xl font-black text-slate-900 md:text-4xl lg:text-5xl">{title}</h2>
-        <p className="text-sm font-medium text-slate-500 md:text-base lg:text-lg">{subtitle}</p>
       </header>
-      <div className="flex flex-col" style={{ gap: `${cardSpacing}px` }}>
+      <div className="flex flex-1 flex-col px-4 py-3" style={{ gap: `${cardSpacing}px` }}>
         {children}
       </div>
     </section>
@@ -127,24 +133,23 @@ function Section({
 
 function OrderRow({ order, tone, fontScale }: { order: Order; tone: Tone; fontScale: number }) {
   const palette = PALETTES[tone];
-  const nameSizeRem = Math.max(2.2, 2.5 * fontScale);
-  const badgeHeightRem = Math.max(3.6, 4.2 * fontScale);
-  const badgeWidthRem = Math.max(7.5, 8.5 * fontScale);
-  const badgeFontRem = Math.max(2.4, 2.8 * fontScale);
+  const nameSizeRem = Math.max(2, 2.3 * fontScale);
+  const badgePadding = Math.max(0.6, 0.9 * fontScale);
+  const badgeFontRem = Math.max(2.2, 2.4 * fontScale);
 
   return (
-    <article className="flex flex-col gap-3 rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm">
+    <article className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 shadow-lg shadow-black/30">
       <div className="flex flex-wrap items-center gap-3">
         <div
-          className={`flex items-center justify-center rounded-2xl font-black ${palette.id}`}
-          style={{ width: `${badgeWidthRem}rem`, height: `${badgeHeightRem}rem`, fontSize: `${badgeFontRem}rem` }}
+          className={`inline-flex items-center justify-center rounded-full bg-black/40 px-4 font-black leading-none ${palette.id}`}
+          style={{ fontSize: `${badgeFontRem}rem`, padding: `${badgePadding}rem` }}
         >
           {order.id}
         </div>
         <div className="flex min-w-0 flex-1">
           <span
-            className="break-words font-extrabold text-slate-900"
-            style={{ fontSize: `${nameSizeRem}rem`, lineHeight: 1.08 }}
+            className="break-words font-extrabold text-white"
+            style={{ fontSize: `${nameSizeRem}rem`, lineHeight: 1.05 }}
           >
             {order.cliente_nome || "Cliente"}
           </span>
@@ -165,11 +170,11 @@ function EmptyState({
   fontScale: number;
   tone: Tone;
 }) {
-  const messageSize = Math.max(1, 1.15 * fontScale);
-  const accent = tone === "warm" ? "text-amber-500" : "text-emerald-500";
+  const messageSize = Math.max(1.2, 1.2 * fontScale);
+  const accent = tone === "warm" ? "text-amber-200" : "text-emerald-200";
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-white/70 px-6 py-10 text-center text-sm font-semibold text-slate-500">
-      <div className={accent}>{icon}</div>
+    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-white/20 bg-white/5 px-6 py-12 text-center text-sm font-semibold text-white/60">
+      <div className={`${accent} opacity-80`}>{icon}</div>
       <span style={{ fontSize: `${messageSize}rem` }}>{message}</span>
     </div>
   );
@@ -233,25 +238,23 @@ export default function TV() {
   const productionShare = clamp(settings.columnRatio, 0.2, 0.6);
   const readyShare = clamp(1 - productionShare, 0.4, 0.8);
   const columnTemplate = `minmax(0, ${productionShare}fr) minmax(0, ${readyShare}fr)`;
-  const columnGap = Math.max(20, settings.cardSpacing + 10);
+  const columnGap = Math.max(12, settings.cardSpacing + 4);
 
   return (
-    <div className="min-h-screen w-full bg-[#f7f3ee] px-4 py-10 font-burger text-slate-900 md:px-8 lg:px-12">
-      <div className="mb-6 flex justify-end">
-        <button
-          type="button"
-          onClick={() => setSettingsOpen(true)}
-          className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-slate-700"
-        >
-          <SettingsIcon className="h-4 w-4" />
-          Ajustar exibição
-        </button>
-      </div>
+    <div className="relative flex min-h-screen w-full flex-col bg-slate-950 font-burger text-white">
+      <button
+        type="button"
+        onClick={() => setSettingsOpen(true)}
+        className="absolute right-3 top-3 inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white transition hover:bg-white/20"
+        aria-label="Ajustar exibição"
+      >
+        <SettingsIcon className="h-5 w-5" />
+      </button>
       <div
-        className="mx-auto grid w-full max-w-[1800px]"
+        className="grid flex-1 gap-3 p-3 md:p-4"
         style={{ gap: `${columnGap}px`, gridTemplateColumns: columnTemplate }}
       >
-        <div className="flex flex-col" style={{ gap: `${settings.cardSpacing}px` }}>
+        <div className="flex h-full flex-col" style={{ gap: `${settings.cardSpacing}px` }}>
           <Section
             title="Em produção"
             subtitle="Pedidos que a cozinha está finalizando"
@@ -274,7 +277,7 @@ export default function TV() {
           </Section>
         </div>
 
-        <div className="flex flex-col" style={{ gap: `${settings.cardSpacing}px` }}>
+        <div className="flex h-full flex-col" style={{ gap: `${settings.cardSpacing}px` }}>
           <Section
             title="Prontos para retirada"
             subtitle="Pedidos liberados para os clientes"

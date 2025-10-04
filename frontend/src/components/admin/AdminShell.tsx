@@ -133,6 +133,7 @@ export default function AdminShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const isCozinhaRoute = location.pathname.startsWith("/admin/cozinha");
+  const isTvRoute = location.pathname.startsWith("/admin/tv");
 
   useAdminPresence(Boolean(token));
 
@@ -143,12 +144,9 @@ export default function AdminShell() {
   }, [initialize]);
 
   useEffect(() => {
-    if (isCozinhaRoute) {
-      setSidebarCollapsed(true);
-    } else {
-      setSidebarCollapsed(false);
-    }
-  }, [isCozinhaRoute]);
+    const shouldCollapse = isCozinhaRoute || isTvRoute;
+    setSidebarCollapsed(shouldCollapse);
+  }, [isCozinhaRoute, isTvRoute]);
 
   const showAdminInsights = useMemo(() => (allowedRoutes || []).includes("config"), [allowedRoutes]);
   const metrics = useAdminMetrics(showAdminInsights);
@@ -195,19 +193,71 @@ export default function AdminShell() {
         onLogout={() => logout().then(() => navigate("/admin/login"))}
         showConfig={showAdminInsights}
       />
-      <div className="flex flex-1 flex-col">
-        <AdminHeader
-          user={user}
-          metrics={metrics.data}
-          loadingMetrics={metrics.isLoading}
-          showInsights={showAdminInsights}
-          collapsed={sidebarCollapsed}
-          onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
-          onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
-          onLogoClick={handleNavigateHome}
-          activeConnections={connectionTotals}
-        />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+      <div className="relative flex flex-1 flex-col">
+        {!isTvRoute && (
+          <AdminHeader
+            user={user}
+            metrics={metrics.data}
+            loadingMetrics={metrics.isLoading}
+            showInsights={showAdminInsights}
+            collapsed={sidebarCollapsed}
+            onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+            onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
+            onLogoClick={handleNavigateHome}
+            activeConnections={connectionTotals}
+          />
+        )}
+        {isTvRoute && (
+          <>
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="absolute left-3 top-3 inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white shadow-lg shadow-black/30 transition hover:bg-white/20 md:hidden"
+              aria-label="Abrir menu"
+            >
+              <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor">
+                <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed((prev) => !prev)}
+              className="absolute left-3 top-3 hidden h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white shadow-lg shadow-black/30 transition hover:bg-white/20 md:inline-flex"
+              aria-label="Alternar menu"
+            >
+              {sidebarCollapsed ? (
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-6 w-6"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.8}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M8.5 6.5 14 12l-5.5 5.5" />
+                  <path d="M5 6.5 10.5 12 5 17.5" />
+                </svg>
+              ) : (
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-6 w-6"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.8}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M15.5 6.5 10 12l5.5 5.5" />
+                  <path d="M19 6.5 13.5 12 19 17.5" />
+                </svg>
+              )}
+            </button>
+          </>
+        )}
+        <main
+          className={`flex-1 ${isTvRoute ? "overflow-hidden p-0" : "overflow-y-auto p-4 md:p-6"}`}
+        >
           <Outlet />
         </main>
       </div>
