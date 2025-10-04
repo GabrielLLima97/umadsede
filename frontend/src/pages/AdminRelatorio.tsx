@@ -543,11 +543,11 @@ function LineChart({
             )}
             <text
               x={point.x}
-              y={baselineY + 10}
+              y={baselineY + 14}
               fontSize={11}
               fill="#64748b"
-              textAnchor="end"
-              transform={`translate(${point.x}, ${baselineY + 20}) rotate(-60)`}
+              textAnchor="middle"
+              transform={`translate(${point.x}, ${baselineY + 14}) rotate(-90)`}
             >
               {point.label}
             </text>
