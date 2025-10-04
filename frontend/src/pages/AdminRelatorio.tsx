@@ -450,12 +450,13 @@ function LineChart({
   maxValue: number;
 }) {
   const width = 900;
-  const height = 260;
+  const height = 300;
   const paddingX = 60;
-  const paddingY = 36;
+  const paddingTop = 24;
+  const paddingBottom = 80;
   const innerWidth = width - paddingX * 2;
-  const innerHeight = height - paddingY * 2;
-  const baselineY = height - paddingY;
+  const innerHeight = height - paddingTop - paddingBottom;
+  const baselineY = height - paddingBottom;
   const stepX = data.length > 1 ? innerWidth / (data.length - 1) : 0;
 
   const points = data.map((point, index) => {
@@ -473,6 +474,16 @@ function LineChart({
     .map((point, index) => `${index === 0 ? "M" : "L"}${point.x} ${point.y}`)
     .join(" ") + ` L${points[points.length - 1]?.x ?? paddingX} ${baselineY} L${points[0]?.x ?? paddingX} ${baselineY} Z`;
 
+  const gridStep = 100;
+  const gridLines: { value: number; y: number }[] = [];
+  if (maxValue > 0) {
+    for (let value = gridStep; value < maxValue; value += gridStep) {
+      const ratio = value / maxValue;
+      const y = baselineY - ratio * innerHeight;
+      gridLines.push({ value, y });
+    }
+  }
+
   return (
     <div className="mt-6 w-full overflow-hidden">
       <svg
@@ -486,6 +497,28 @@ function LineChart({
             <stop offset="100%" stopColor="rgba(16,185,129,0.05)" />
           </linearGradient>
         </defs>
+        {gridLines.map((line) => (
+          <g key={line.value}>
+            <line
+              x1={paddingX}
+              y1={line.y}
+              x2={width - paddingX}
+              y2={line.y}
+              stroke="#e2e8f0"
+              strokeWidth={1}
+              strokeDasharray="4 4"
+            />
+            <text
+              x={paddingX - 10}
+              y={line.y + 4}
+              textAnchor="end"
+              fontSize={10}
+              fill="#64748b"
+            >
+              {brl.format(line.value)}
+            </text>
+          </g>
+        ))}
         <line x1={paddingX} y1={baselineY} x2={width - paddingX} y2={baselineY} stroke="#cbd5f5" strokeWidth={1} strokeDasharray="4 4" />
         <path d={areaD} fill="url(#chart-gradient)" opacity={0.6} />
         <path d={pathD} fill="none" stroke="#059669" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
@@ -510,11 +543,11 @@ function LineChart({
             )}
             <text
               x={point.x}
-              y={baselineY + 28}
-              textAnchor="end"
+              y={baselineY + 10}
               fontSize={11}
               fill="#64748b"
-              transform={`rotate(-90 ${point.x} ${baselineY + 28})`}
+              textAnchor="end"
+              transform={`translate(${point.x}, ${baselineY + 20}) rotate(-60)`}
             >
               {point.label}
             </text>
