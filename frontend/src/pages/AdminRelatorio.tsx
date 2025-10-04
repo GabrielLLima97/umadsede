@@ -543,11 +543,12 @@ function LineChart({
             )}
             <text
               x={point.x}
-              y={baselineY + 14}
+              y={baselineY + 12}
               fontSize={11}
               fill="#64748b"
               textAnchor="middle"
-              transform={`translate(${point.x}, ${baselineY + 14}) rotate(-90)`}
+              dominantBaseline="hanging"
+              style={{ writingMode: "vertical-rl", textOrientation: "upright" }}
             >
               {point.label}
             </text>
