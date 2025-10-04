@@ -14,12 +14,14 @@ const READY_STATUS = "pronto";
 type Tone = "warm" | "fresh";
 type TvSettings = {
   fontScale: number;
+  titleScale: number;
   columnRatio: number;
   cardSpacing: number;
 };
 
 const DEFAULT_SETTINGS: TvSettings = {
   fontScale: 1.1,
+  titleScale: 1,
   columnRatio: 0.35,
   cardSpacing: 16,
 };
@@ -38,16 +40,16 @@ const PALETTES: Record<
   }
 > = {
   warm: {
-    id: "text-amber-200",
-    accent: "border-amber-300/40",
-    background: "bg-amber-500/10",
-    header: "text-amber-100",
+    id: "text-amber-600",
+    accent: "border-amber-200/80",
+    background: "bg-gradient-to-br from-amber-50 via-orange-50 to-white",
+    header: "text-amber-700",
   },
   fresh: {
-    id: "text-emerald-200",
-    accent: "border-emerald-300/40",
-    background: "bg-emerald-500/10",
-    header: "text-emerald-100",
+    id: "text-emerald-600",
+    accent: "border-emerald-200/80",
+    background: "bg-gradient-to-br from-emerald-50 via-lime-50 to-white",
+    header: "text-emerald-700",
   },
 };
 
@@ -99,6 +101,7 @@ function Section({
   icon,
   children,
   cardSpacing,
+  titleScale,
 }: {
   title: string;
   subtitle: string;
@@ -106,21 +109,30 @@ function Section({
   icon: JSX.Element;
   children: ReactNode;
   cardSpacing: number;
+  titleScale: number;
 }) {
   const palette = PALETTES[tone];
+  const titleSizeRem = Math.max(1.8, 2.4 * titleScale);
+  const subtitleSizeRem = Math.max(0.9, 1.1 * titleScale);
 
   return (
     <section
       className={`flex h-full flex-col rounded-3xl border ${palette.accent} ${palette.background} backdrop-blur-sm`}
     >
-      <header className="flex items-center justify-between gap-3 border-b border-white/5 px-4 py-3 text-left">
+      <header className="flex items-center justify-between gap-3 border-b border-slate-200/70 px-4 py-3 text-left">
         <div className="flex items-center gap-3">
-          <div className="inline-flex items-center justify-center rounded-full border border-white/20 bg-white/5 p-2 text-xs font-semibold uppercase tracking-[0.35em] text-white/80">
+          <div
+            className={`inline-flex items-center justify-center rounded-full border border-slate-200/70 bg-white/80 p-2 text-xs font-semibold uppercase tracking-[0.35em] ${palette.header}`}
+          >
             {icon}
           </div>
           <div className="flex flex-col leading-tight">
-            <span className={`text-xl font-black ${palette.header}`}>{title}</span>
-            <span className="text-xs font-medium text-white/60">{subtitle}</span>
+            <span className={`font-black ${palette.header}`} style={{ fontSize: `${titleSizeRem}rem` }}>
+              {title}
+            </span>
+            <span className="text-slate-600" style={{ fontSize: `${subtitleSizeRem}rem` }}>
+              {subtitle}
+            </span>
           </div>
         </div>
       </header>
@@ -138,17 +150,20 @@ function OrderRow({ order, tone, fontScale }: { order: Order; tone: Tone; fontSc
   const badgeFontRem = Math.max(2.2, 2.4 * fontScale);
 
   return (
-    <article className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 shadow-lg shadow-black/30">
+    <article
+      className="flex flex-col gap-2 rounded-2xl border border-slate-200/70 bg-white/95 px-4 py-3"
+      style={{ boxShadow: "0 16px 32px rgba(15, 23, 42, 0.08)" }}
+    >
       <div className="flex flex-wrap items-center gap-3">
         <div
-          className={`inline-flex items-center justify-center rounded-full bg-black/40 px-4 font-black leading-none ${palette.id}`}
+          className={`inline-flex items-center justify-center rounded-full bg-white shadow-inner px-4 font-black leading-none ${palette.id}`}
           style={{ fontSize: `${badgeFontRem}rem`, padding: `${badgePadding}rem` }}
         >
           {order.id}
         </div>
         <div className="flex min-w-0 flex-1">
           <span
-            className="break-words font-extrabold text-white"
+            className="break-words font-extrabold text-slate-900"
             style={{ fontSize: `${nameSizeRem}rem`, lineHeight: 1.05 }}
           >
             {order.cliente_nome || "Cliente"}
@@ -171,11 +186,13 @@ function EmptyState({
   tone: Tone;
 }) {
   const messageSize = Math.max(1.2, 1.2 * fontScale);
-  const accent = tone === "warm" ? "text-amber-200" : "text-emerald-200";
+  const accent = tone === "warm" ? "text-amber-500" : "text-emerald-500";
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-white/20 bg-white/5 px-6 py-12 text-center text-sm font-semibold text-white/60">
+    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-200/70 bg-white/90 px-6 py-12 text-center text-sm font-semibold text-slate-500">
       <div className={`${accent} opacity-80`}>{icon}</div>
-      <span style={{ fontSize: `${messageSize}rem` }}>{message}</span>
+      <span style={{ fontSize: `${messageSize}rem` }} className="text-slate-700">
+        {message}
+      </span>
     </div>
   );
 }
@@ -219,6 +236,7 @@ export default function TV() {
       const parsed = JSON.parse(raw) as Partial<TvSettings>;
       setSettings((prev) => ({
         fontScale: clamp(parsed.fontScale ?? prev.fontScale, 0.8, 1.8),
+        titleScale: clamp(parsed.titleScale ?? prev.titleScale, 0.8, 1.5),
         columnRatio: clamp(parsed.columnRatio ?? prev.columnRatio, 0.2, 0.6),
         cardSpacing: clamp(parsed.cardSpacing ?? prev.cardSpacing, 12, 80),
       }));
@@ -241,11 +259,12 @@ export default function TV() {
   const columnGap = Math.max(12, settings.cardSpacing + 4);
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col bg-slate-950 font-burger text-white">
+    <div className="relative flex min-h-screen w-full flex-col bg-[#f7f3ee] font-burger text-slate-900">
       <button
         type="button"
         onClick={() => setSettingsOpen(true)}
-        className="absolute right-3 top-3 inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white transition hover:bg-white/20"
+        className="absolute right-3 top-3 z-50 inline-flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
+        style={{ boxShadow: "0 12px 28px rgba(15, 23, 42, 0.12)" }}
         aria-label="Ajustar exibição"
       >
         <SettingsIcon className="h-5 w-5" />
@@ -261,6 +280,7 @@ export default function TV() {
             tone="warm"
             icon={<ProductionIcon className="h-4 w-4" />}
             cardSpacing={settings.cardSpacing}
+            titleScale={settings.titleScale}
           >
             {pedidosProducao.length > 0 ? (
               pedidosProducao.map((order) => (
@@ -284,6 +304,7 @@ export default function TV() {
             tone="fresh"
             icon={<ReadyIcon className="h-4 w-4" />}
             cardSpacing={settings.cardSpacing}
+            titleScale={settings.titleScale}
           >
             {pedidosProntos.length > 0 ? (
               pedidosProntos.map((order) => (
@@ -373,6 +394,23 @@ function SettingsModal({
               step={0.05}
               value={settings.fontScale}
               onChange={(event) => update({ fontScale: Number(event.target.value) })}
+              className="w-full accent-slate-900"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm font-semibold text-slate-600">
+              <label htmlFor="titleScale">Escala dos títulos</label>
+              <span>{Math.round(settings.titleScale * 100)}%</span>
+            </div>
+            <input
+              id="titleScale"
+              type="range"
+              min={0.8}
+              max={1.5}
+              step={0.05}
+              value={settings.titleScale}
+              onChange={(event) => update({ titleScale: Number(event.target.value) })}
               className="w-full accent-slate-900"
             />
           </div>

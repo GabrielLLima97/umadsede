@@ -212,7 +212,8 @@ export default function AdminShell() {
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
-              className="absolute left-3 top-3 inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white shadow-lg shadow-black/30 transition hover:bg-white/20 md:hidden"
+              className="absolute left-3 top-3 z-50 inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 md:hidden"
+              style={{ boxShadow: "0 12px 28px rgba(15, 23, 42, 0.12)" }}
               aria-label="Abrir menu"
             >
               <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor">
@@ -222,7 +223,8 @@ export default function AdminShell() {
             <button
               type="button"
               onClick={() => setSidebarCollapsed((prev) => !prev)}
-              className="absolute left-3 top-3 hidden h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white shadow-lg shadow-black/30 transition hover:bg-white/20 md:inline-flex"
+              className="absolute left-3 top-3 z-50 hidden h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 md:inline-flex"
+              style={{ boxShadow: "0 12px 28px rgba(15, 23, 42, 0.12)" }}
               aria-label="Alternar menu"
             >
               {sidebarCollapsed ? (
