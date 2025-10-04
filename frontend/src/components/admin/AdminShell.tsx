@@ -301,7 +301,7 @@ function AdminSidebar({
     <>
       {open && <div className="fixed inset-0 z-30 bg-black/40 md:hidden" onClick={onClose} />}
       <aside
-        className={`fixed inset-y-0 left-0 z-20 flex w-72 transform bg-white/70 text-slate-800 shadow-2xl backdrop-blur-2xl transition-transform duration-200 md:sticky md:top-2 md:self-start md:h-[calc(100vh-0.5rem)] md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-20 flex w-72 transform bg-white/70 text-slate-800 shadow-2xl backdrop-blur-2xl transition-transform duration-200 md:sticky md:top-2 md:z-10 md:self-start md:h-[calc(100vh-0.5rem)] md:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         } ${collapsed ? "md:w-20" : "md:w-72"}`}
       >

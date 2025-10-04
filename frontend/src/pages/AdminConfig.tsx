@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "../api";
+import { brl } from "../utils/format";
 import { ADMIN_ROUTES } from "../constants/adminRoutes";
 import { useAuth } from "../store/auth";
 import { useToast } from "../store/toast";
