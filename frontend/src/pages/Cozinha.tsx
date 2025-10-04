@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { OrderCard } from "../components/Kanban";
 
@@ -45,6 +45,8 @@ export default function Cozinha(){
     api.patch(`/orders/${id}/antecipado/`, { antecipado: value }).then(carregar);
 
   const [filtroTexto, setFiltroTexto] = useState("");
+  const [categoriaFiltro, setCategoriaFiltro] = useState("");
+  const categoriaDoItem = (item: any) => itemsMap?.[item.item]?.categoria || item.categoria || "Outros";
   const matchFiltro = (pedido: any) => {
     if (!filtroTexto.trim()) return true;
     const q = filtroTexto.trim().toLowerCase();
@@ -52,11 +54,60 @@ export default function Cozinha(){
     const nomeMatch = (pedido.cliente_nome || "").toLowerCase().includes(q);
     return idMatch || nomeMatch;
   };
+  const matchCategoria = (pedido: any) => {
+    if (!categoriaFiltro) return true;
+    return (pedido.itens || []).some((item: any) => categoriaDoItem(item) === categoriaFiltro);
+  };
 
   const fonte = dados.filter((pedido) => {
     if (!mostrarAntecipados && parseBoolean(pedido.antecipado)) return false;
-    return matchFiltro(pedido);
+    if (!matchFiltro(pedido)) return false;
+    return matchCategoria(pedido);
   });
+
+  type StatusResumo = "a preparar" | "em produção";
+  const categoriasDisponiveis = useMemo(() => {
+    const set = new Set<string>();
+    dados.forEach((pedido: any) => {
+      (pedido.itens || []).forEach((item: any) => {
+        const categoria = categoriaDoItem(item);
+        set.add(categoria);
+      });
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [dados, itemsMap]);
+
+  useEffect(() => {
+    if (categoriaFiltro && !categoriasDisponiveis.includes(categoriaFiltro)) {
+      setCategoriaFiltro("");
+    }
+  }, [categoriaFiltro, categoriasDisponiveis]);
+
+  const resumoItens = useMemo(() => {
+    const map: Record<StatusResumo, Map<string, { nome: string; qtd: number }>> = {
+      "a preparar": new Map(),
+      "em produção": new Map(),
+    };
+
+    fonte.forEach((pedido: any) => {
+      const statusKey = pedido.status as StatusResumo;
+      if (statusKey !== "a preparar" && statusKey !== "em produção") return;
+      (pedido.itens || []).forEach((item: any) => {
+        const nome = item.nome || `Item ${item.item}`;
+        const atual = map[statusKey].get(nome) || { nome, qtd: 0 };
+        const quantidade = Number(item.qtd || 0);
+        map[statusKey].set(nome, { nome, qtd: atual.qtd + (Number.isFinite(quantidade) ? quantidade : 0) });
+      });
+    });
+
+    return {
+      aPreparar: Array.from(map["a preparar"].values()).sort((a, b) => a.nome.localeCompare(b.nome)),
+      emProducao: Array.from(map["em produção"].values()).sort((a, b) => a.nome.localeCompare(b.nome)),
+    };
+  }, [fonte]);
+
+  const totalItensAPreparar = resumoItens.aPreparar.reduce((acc, item) => acc + item.qtd, 0);
+  const totalItensEmProducao = resumoItens.emProducao.reduce((acc, item) => acc + item.qtd, 0);
 
   const col = (s:string)=> fonte.filter(p=>p.status===s);
   const sortByCreated = (arr:any[]) =>
@@ -66,6 +117,61 @@ export default function Cozinha(){
 
   return (
     <div className="flex flex-col gap-4 w-full">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 shadow-sm">
+          <div className="flex items-center justify-between text-sky-700">
+            <div className="flex items-center gap-2 font-black">
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                <path d="M3 13h18" />
+                <path d="M5 8h14l1 5-1 7H5l-1-7 1-5Z" />
+                <path d="M8 4h8" />
+              </svg>
+              <span>A preparar</span>
+            </div>
+            <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-bold text-sky-600">
+              {totalItensAPreparar === 1 ? "1 item" : `${totalItensAPreparar} itens`}
+            </span>
+          </div>
+          <ul className="mt-2 space-y-1 text-sm text-sky-700">
+            {resumoItens.aPreparar.length ? (
+              resumoItens.aPreparar.map((item) => (
+                <li key={item.nome} className="flex items-center justify-between rounded-xl bg-white/80 px-3 py-2">
+                  <span className="font-medium">{item.nome}</span>
+                  <span className="font-black text-sky-800">x{item.qtd}</span>
+                </li>
+              ))
+            ) : (
+              <li className="text-slate-500">Nenhum item pendente</li>
+            )}
+          </ul>
+        </div>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm">
+          <div className="flex items-center justify-between text-amber-700">
+            <div className="flex items-center gap-2 font-black">
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                <path d="M4 7h16l-1.3 11.2a2 2 0 0 1-2 1.8H7.3a2 2 0 0 1-2-1.8L4 7Z" />
+                <path d="M9 7V5a3 3 0 1 1 6 0v2" />
+              </svg>
+              <span>Em produção</span>
+            </div>
+            <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-bold text-amber-600">
+              {totalItensEmProducao === 1 ? "1 item" : `${totalItensEmProducao} itens`}
+            </span>
+          </div>
+          <ul className="mt-2 space-y-1 text-sm text-amber-700">
+            {resumoItens.emProducao.length ? (
+              resumoItens.emProducao.map((item) => (
+                <li key={item.nome} className="flex items-center justify-between rounded-xl bg-white/80 px-3 py-2">
+                  <span className="font-medium">{item.nome}</span>
+                  <span className="font-black text-amber-800">x{item.qtd}</span>
+                </li>
+              ))
+            ) : (
+              <li className="text-slate-500">Nenhum item pendente</li>
+            )}
+          </ul>
+        </div>
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-2xl font-black">Cozinha</div>
         <div className="flex flex-wrap items-center gap-2">
@@ -79,6 +185,27 @@ export default function Cozinha(){
               placeholder="Buscar por código ou nome"
               className="bg-transparent outline-none placeholder:text-slate-400"
             />
+          </div>
+          <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600 shadow-sm">
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
+              <path d="M4 7h16" />
+              <path d="M6 4v3" />
+              <path d="M12 4v3" />
+              <path d="M18 4v3" />
+              <path d="M6 11h12l1.5 6.5a2 2 0 0 1-2 2.5H6a2 2 0 0 1-2-2.5L6 11Z" />
+            </svg>
+            <select
+              value={categoriaFiltro}
+              onChange={(event) => setCategoriaFiltro(event.target.value)}
+              className="bg-transparent text-sm text-slate-600 outline-none"
+            >
+              <option value="">Todas as categorias</option>
+              {categoriasDisponiveis.map((categoria) => (
+                <option key={categoria} value={categoria}>
+                  {categoria}
+                </option>
+              ))}
+            </select>
           </div>
           <button
             className="btn btn-ghost inline-flex items-center gap-2"
