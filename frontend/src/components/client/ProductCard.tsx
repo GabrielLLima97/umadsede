@@ -61,10 +61,8 @@ const ProductCard: React.FC<Props> = ({ item, showExactStock = false, onDetails,
   const imageClasses = soldOut
     ? "h-full w-full object-cover filter grayscale contrast-75 opacity-60"
     : "h-full w-full object-cover";
-  const showDetailsButton = !!item.descricao && (compact || String(item.descricao).length > 120);
-  const descriptionClass = compact
-    ? "mt-2 text-sm text-slate-600 line-clamp-1"
-    : "mt-2 text-sm text-slate-600 md:line-clamp-3";
+  const showDetailsButton = !!item.descricao && String(item.descricao).length > 160;
+  const descriptionClass = "mt-2 text-sm text-slate-600 whitespace-pre-wrap";
 
   return (
     <article

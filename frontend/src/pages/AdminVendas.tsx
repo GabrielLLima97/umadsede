@@ -58,6 +58,10 @@ export default function AdminVendas(){
     }
   }, [paymentMethod]);
 
+  const receivedValue = paymentMethod === "Dinheiro" ? parseCurrencyInput(valorRecebido || "0") : total;
+  const changeDue = paymentMethod === "Dinheiro" ? Math.max(receivedValue - total, 0) : 0;
+  const insufficientCash = paymentMethod === "Dinheiro" && receivedValue < total;
+
   useEffect(()=>{
     const load = async ()=>{
       const [itemsRes, orderRes] = await Promise.all([
@@ -103,16 +107,13 @@ export default function AdminVendas(){
   const handleFinalizeClick = ()=>{
     if(cart.items.length===0) return;
     if(!nome.trim()) { alert("O nome do cliente é obrigatório."); return; }
-    if (paymentMethod === "Dinheiro" && !valorRecebido) {
-      setValorRecebido(total > 0 ? total.toFixed(2) : "");
-    }
     setConfirmOpen(true);
   };
 
   const confirmarEnvio = async ()=>{
     if(enviando) return;
-    const recebidoValor = paymentMethod === "Dinheiro" ? parseCurrencyInput(valorRecebido || "0") : total;
-    const troco = paymentMethod === "Dinheiro" ? Math.max(recebidoValor - total, 0) : 0;
+    const recebidoValor = receivedValue;
+    const troco = changeDue;
     const payload = {
       cliente_nome: nome||"Balcão",
       cliente_waid: (waid||"").replace(/\D/g, ""),
@@ -252,10 +253,10 @@ export default function AdminVendas(){
                     onChange={(e) => setValorRecebido(e.target.value)}
                   />
                 </label>
-                <div className="text-xs text-slate-500">
-                  Troco: <span className="font-bold text-emerald-700">{brl.format(Math.max(parseCurrencyInput(valorRecebido || "0") - total, 0))}</span>
+                <div className="rounded-2xl bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-800">
+                  Troco: {brl.format(changeDue)}
                 </div>
-                {parseCurrencyInput(valorRecebido || "0") < total && (
+                {insufficientCash && (
                   <div className="text-xs font-semibold text-rose-600">O valor recebido está abaixo do total.</div>
                 )}
               </div>
@@ -267,9 +268,7 @@ export default function AdminVendas(){
               type="button"
               className={`btn btn-primary ${enviando?"loading":""}`}
               onClick={confirmarEnvio}
-              disabled={
-                enviando || (paymentMethod === "Dinheiro" && parseCurrencyInput(valorRecebido || "0") < total)
-              }
+              disabled={enviando || insufficientCash}
             >
               Confirmar e enviar
             </button>
@@ -287,10 +286,10 @@ export default function AdminVendas(){
           <div className="text-5xl font-black text-slate-900 mt-2">#{successInfo.id}</div>
           <div className="mt-3 text-sm text-slate-700">Cliente: <span className="font-bold">{successInfo.cliente}</span></div>
           <div className="text-sm text-slate-700">Pagamento: <span className="font-bold">{successInfo.pagamento}</span></div>
-         <div className="text-sm text-slate-700">Total: <span className="font-bold">{brl.format(successInfo.total || 0)}</span></div>
+          <div className="text-sm text-slate-700">Total: <span className="font-bold">{brl.format(successInfo.total || 0)}</span></div>
           {successInfo.pagamento === "Dinheiro" && (
-            <div className="text-sm text-slate-700">
-              Troco: <span className="font-bold">{brl.format(successInfo.troco || 0)}</span>
+            <div className="rounded-2xl bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-800">
+              Troco: {brl.format(successInfo.troco || 0)}
             </div>
           )}
           <div className="text-sm text-slate-700">Embalagem: <span className="font-bold">{successInfo.embalagem ? "Sim" : "Não"}</span></div>
