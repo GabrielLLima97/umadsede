@@ -2,6 +2,14 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { OrderCard } from "../components/Kanban";
 
+const parseBoolean = (value: unknown) => {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return ["1", "true", "t", "sim", "yes"].includes(normalized);
+  }
+  return !!value;
+};
+
 export default function Cozinha(){
   const [dados,setDados]=useState<any[]>([]);
   const [itemsMap,setItemsMap]=useState<Record<number,{categoria?:string}>>({});
@@ -36,7 +44,20 @@ export default function Cozinha(){
   const toggleAntecipado = (id:number, value:boolean) =>
     api.patch(`/orders/${id}/antecipado/`, { antecipado: value }).then(carregar);
 
-  const fonte = mostrarAntecipados ? dados : dados.filter((p)=> !p.antecipado);
+  const [filtroTexto, setFiltroTexto] = useState("");
+  const matchFiltro = (pedido: any) => {
+    if (!filtroTexto.trim()) return true;
+    const q = filtroTexto.trim().toLowerCase();
+    const idMatch = String(pedido.id).includes(q);
+    const nomeMatch = (pedido.cliente_nome || "").toLowerCase().includes(q);
+    return idMatch || nomeMatch;
+  };
+
+  const fonte = dados.filter((pedido) => {
+    if (!mostrarAntecipados && parseBoolean(pedido.antecipado)) return false;
+    return matchFiltro(pedido);
+  });
+
   const col = (s:string)=> fonte.filter(p=>p.status===s);
   const sortByCreated = (arr:any[]) =>
     [...arr].sort((a,b)=> new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
@@ -47,14 +68,37 @@ export default function Cozinha(){
     <div className="flex flex-col gap-4 w-full">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-2xl font-black">Cozinha</div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600 shadow-sm">
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
+              <path d="m10.5 14.5-3 4.5h9l-3-4.5m-6-4a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0Z" />
+            </svg>
+            <input
+              value={filtroTexto}
+              onChange={(event) => setFiltroTexto(event.target.value)}
+              placeholder="Buscar por código ou nome"
+              className="bg-transparent outline-none placeholder:text-slate-400"
+            />
+          </div>
           <button
-            className="btn btn-ghost"
+            className="btn btn-ghost inline-flex items-center gap-2"
             onClick={() => setMostrarAntecipados((prev) => !prev)}
           >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
+              <path d="M5 5h14l1.4 3.5a4 4 0 0 1 .1 2.8l-1.6 4.1a4 4 0 0 1-3.7 2.6H8.8a4 4 0 0 1-3.8-2.7L3.7 11a4 4 0 0 1 .1-2.9L5 5Zm7 9v5" />
+              <path d="M9 19h6" />
+            </svg>
             {mostrarAntecipados ? "Ocultar antecipados" : "Mostrar antecipados"}
           </button>
-          <button className="btn btn-ghost" onClick={carregar}>Atualizar</button>
+          <button className="btn btn-ghost inline-flex items-center gap-2" onClick={carregar}>
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
+              <path d="M4 4v6h6" />
+              <path d="M20 20v-6h-6" />
+              <path d="M5 13a7 7 0 0 0 12 3l2 2" />
+              <path d="M19 11a7 7 0 0 0-12-3L5 6" />
+            </svg>
+            Atualizar
+          </button>
         </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
