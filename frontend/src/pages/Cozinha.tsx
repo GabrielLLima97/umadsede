@@ -14,7 +14,7 @@ export default function Cozinha(){
   const [dados,setDados]=useState<any[]>([]);
   const [itemsMap,setItemsMap]=useState<Record<number,{categoria?:string}>>({});
   const [now,setNow]=useState<number>(Date.now());
-  const [mostrarAntecipados, setMostrarAntecipados] = useState(true);
+  const [mostrarAntecipados, setMostrarAntecipados] = useState(false);
   const [mostrarResumoItens, setMostrarResumoItens] = useState(false);
 
   const carregar = async ()=>{

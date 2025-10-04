@@ -145,10 +145,10 @@ export default function AdminShell() {
   useEffect(() => {
     if (isCozinhaRoute) {
       setSidebarCollapsed(true);
-    } else if (sidebarCollapsed) {
+    } else {
       setSidebarCollapsed(false);
     }
-  }, [isCozinhaRoute, sidebarCollapsed]);
+  }, [isCozinhaRoute]);
 
   const showAdminInsights = useMemo(() => (allowedRoutes || []).includes("config"), [allowedRoutes]);
   const metrics = useAdminMetrics(showAdminInsights);
