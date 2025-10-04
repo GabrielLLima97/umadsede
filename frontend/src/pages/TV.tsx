@@ -13,7 +13,8 @@ const READY_STATUS = "pronto";
 
 type Tone = "warm" | "fresh";
 type TvSettings = {
-  fontScale: number;
+  productionFontScale: number;
+  readyFontScale: number;
   productionTitleScale: number;
   readyTitleScale: number;
   columnRatio: number;
@@ -21,7 +22,8 @@ type TvSettings = {
 };
 
 const DEFAULT_SETTINGS: TvSettings = {
-  fontScale: 1.1,
+  productionFontScale: 1.1,
+  readyFontScale: 1.1,
   productionTitleScale: 1,
   readyTitleScale: 1,
   columnRatio: 0.35,
@@ -237,7 +239,16 @@ export default function TV() {
       if (!raw) return;
       const parsed = JSON.parse(raw) as Partial<TvSettings>;
       setSettings((prev) => ({
-        fontScale: clamp(parsed.fontScale ?? prev.fontScale, 0.8, 1.8),
+        productionFontScale: clamp(
+          parsed.productionFontScale ?? parsed.fontScale ?? prev.productionFontScale,
+          0.8,
+          1.8,
+        ),
+        readyFontScale: clamp(
+          parsed.readyFontScale ?? parsed.fontScale ?? prev.readyFontScale,
+          0.8,
+          1.8,
+        ),
         productionTitleScale: clamp(parsed.productionTitleScale ?? prev.productionTitleScale, 0.8, 1.5),
         readyTitleScale: clamp(parsed.readyTitleScale ?? prev.readyTitleScale, 0.8, 1.5),
         columnRatio: clamp(parsed.columnRatio ?? prev.columnRatio, 0.2, 0.6),
@@ -287,13 +298,18 @@ export default function TV() {
           >
             {pedidosProducao.length > 0 ? (
               pedidosProducao.map((order) => (
-                <OrderRow key={order.id} order={order} tone="warm" fontScale={settings.fontScale} />
+                <OrderRow
+                  key={order.id}
+                  order={order}
+                  tone="warm"
+                  fontScale={settings.productionFontScale}
+                />
               ))
             ) : (
               <EmptyState
                 icon={<ProductionIcon className="h-6 w-6" />}
                 message="Nenhum pedido em produção agora."
-                fontScale={settings.fontScale}
+                fontScale={settings.productionFontScale}
                 tone="warm"
               />
             )}
@@ -311,13 +327,18 @@ export default function TV() {
           >
             {pedidosProntos.length > 0 ? (
               pedidosProntos.map((order) => (
-                <OrderRow key={order.id} order={order} tone="fresh" fontScale={settings.fontScale} />
+                <OrderRow
+                  key={order.id}
+                  order={order}
+                  tone="fresh"
+                  fontScale={settings.readyFontScale}
+                />
               ))
             ) : (
               <EmptyState
                 icon={<ReadyIcon className="h-6 w-6" />}
                 message="Nenhum pedido pronto no momento."
-                fontScale={settings.fontScale}
+                fontScale={settings.readyFontScale}
                 tone="fresh"
               />
             )}
@@ -386,17 +407,34 @@ function SettingsModal({
         <div className="mt-6 space-y-6">
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm font-semibold text-slate-600">
-              <label htmlFor="fontScale">Escala da fonte</label>
-              <span>{Math.round(settings.fontScale * 100)}%</span>
+              <label htmlFor="productionFontScale">Fonte dos itens (Em produção)</label>
+              <span>{Math.round(settings.productionFontScale * 100)}%</span>
             </div>
             <input
-              id="fontScale"
+              id="productionFontScale"
               type="range"
-              min={0.9}
+              min={0.8}
               max={1.8}
               step={0.05}
-              value={settings.fontScale}
-              onChange={(event) => update({ fontScale: Number(event.target.value) })}
+              value={settings.productionFontScale}
+              onChange={(event) => update({ productionFontScale: Number(event.target.value) })}
+              className="w-full accent-slate-900"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm font-semibold text-slate-600">
+              <label htmlFor="readyFontScale">Fonte dos itens (Prontos)</label>
+              <span>{Math.round(settings.readyFontScale * 100)}%</span>
+            </div>
+            <input
+              id="readyFontScale"
+              type="range"
+              min={0.8}
+              max={1.8}
+              step={0.05}
+              value={settings.readyFontScale}
+              onChange={(event) => update({ readyFontScale: Number(event.target.value) })}
               className="w-full accent-slate-900"
             />
           </div>
