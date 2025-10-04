@@ -547,7 +547,7 @@ function LineChart({
               fontSize={11}
               fill="#64748b"
               textAnchor="middle"
-              dominantBaseline="central"
+              dominantBaseline="middle"
               transform={`translate(${point.x}, ${baselineY + 20}) rotate(-90)`}
             >
               {point.label}

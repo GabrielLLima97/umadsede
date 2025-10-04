@@ -14,6 +14,15 @@ type DashboardUser = {
   is_active: boolean;
 };
 
+type ResetOrder = {
+  id: number;
+  status: string;
+  created_at: string;
+  valor_total: number;
+  cliente_nome?: string;
+  paid_at?: string;
+};
+
 type UsersResponse = {
   results?: DashboardUser[];
   [key: string]: any;
@@ -689,6 +698,7 @@ export function ConfigMonitoringPage() {
 export function ConfigResetPage() {
   const pushToast = useToast((state) => state.push);
   const [confirmText, setConfirmText] = useState("");
+  const [selectedOrders, setSelectedOrders] = useState<Set<number>>(new Set());
 
   const resetMutation = useMutation({
     mutationFn: async ({ confirm }: { confirm: string }) => {
@@ -726,6 +736,55 @@ export function ConfigResetPage() {
   };
 
   const result = resetMutation.data;
+
+  const ordersQuery = useQuery({
+    queryKey: ["admin", "reset", "orders"],
+    queryFn: async () => {
+      const response = await api.get("/orders/?limit=500&ordering=-created_at");
+      const data = response.data?.results || response.data || [];
+      return Array.isArray(data) ? (data as ResetOrder[]) : [];
+    },
+  });
+
+  const deleteSelectedMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      await Promise.all(ids.map((id) => api.delete(`/orders/${id}/`)));
+      return ids;
+    },
+    onSuccess: (ids) => {
+      pushToast({ type: "success", message: `${ids.length} pedido(s) removido(s) com sucesso.` });
+      setSelectedOrders(new Set());
+      ordersQuery.refetch();
+    },
+    onError: (error: any) => {
+      const detail = error?.response?.data?.detail || error?.message || "Não foi possível remover os pedidos selecionados.";
+      pushToast({ type: "error", message: typeof detail === "string" ? detail : JSON.stringify(detail) });
+    },
+  });
+
+  const toggleOrder = (id: number) => {
+    setSelectedOrders((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    const data = ordersQuery.data || [];
+    setSelectedOrders(new Set(data.map((order) => order.id)));
+  };
+
+  const clearSelection = () => setSelectedOrders(new Set());
+
+  const handleDeleteSelected = () => {
+    if (!selectedOrders.size) {
+      pushToast({ type: "error", message: "Selecione ao menos um pedido para remover." });
+      return;
+    }
+    deleteSelectedMutation.mutate(Array.from(selectedOrders));
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -790,6 +849,93 @@ export function ConfigResetPage() {
             <p className="mt-3 text-xs text-slate-500">Peça para a equipe recarregar o painel para visualizar a base limpa.</p>
           </div>
         )}
+      </section>
+
+      <section className="card space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="font-black">Pedidos atuais</div>
+            <p className="text-sm text-slate-600">Selecione pedidos específicos para remover sem executar o reset completo.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
+            <button type="button" className="rounded-full border border-slate-200 px-3 py-1 transition hover:bg-slate-100" onClick={selectAll} disabled={ordersQuery.isLoading || deleteSelectedMutation.isLoading}>
+              Selecionar todos
+            </button>
+            <button type="button" className="rounded-full border border-slate-200 px-3 py-1 transition hover:bg-slate-100" onClick={clearSelection} disabled={!selectedOrders.size}>
+              Limpar seleção
+            </button>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
+              {selectedOrders.size} selecionado(s)
+            </span>
+          </div>
+        </div>
+        <div className="overflow-x-auto rounded-2xl border border-slate-200">
+          <table className="min-w-full divide-y divide-slate-200 text-sm">
+            <thead className="bg-slate-50 text-slate-600">
+              <tr>
+                <th className="px-3 py-2 text-left">Selecionar</th>
+                <th className="px-3 py-2 text-left">Pedido</th>
+                <th className="px-3 py-2 text-left">Cliente</th>
+                <th className="px-3 py-2 text-left">Status</th>
+                <th className="px-3 py-2 text-left">Data</th>
+                <th className="px-3 py-2 text-left">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ordersQuery.isLoading && (
+                <tr>
+                  <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
+                    Carregando pedidos…
+                  </td>
+                </tr>
+              )}
+              {!ordersQuery.isLoading && (ordersQuery.data || []).length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
+                    Nenhum pedido encontrado.
+                  </td>
+                </tr>
+              )}
+              {(ordersQuery.data || []).map((order) => {
+                const checked = selectedOrders.has(order.id);
+                const isPago = order.status === "pago" || Boolean(order.paid_at);
+                return (
+                  <tr key={order.id} className="border-t border-slate-200">
+                    <td className="px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleOrder(order.id)}
+                      />
+                    </td>
+                    <td className="px-3 py-2 font-semibold">#{order.id}</td>
+                    <td className="px-3 py-2">{order.cliente_nome || "—"}</td>
+                    <td className="px-3 py-2">
+                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${isPago ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                        {order.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2">{new Date(order.created_at).toLocaleString()}</td>
+                    <td className="px-3 py-2 font-black">{brl.format(Number(order.valor_total) || 0)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="text-xs text-slate-500">
+            Exibindo até 500 pedidos mais recentes. Utilize o reset completo para limpar toda a base.
+          </div>
+          <button
+            type="button"
+            className="btn btn-ghost text-rose-600 hover:bg-rose-50"
+            onClick={handleDeleteSelected}
+            disabled={deleteSelectedMutation.isLoading || !selectedOrders.size}
+          >
+            {deleteSelectedMutation.isLoading ? "Removendo..." : "Remover selecionados"}
+          </button>
+        </div>
       </section>
 
       <section className="rounded-3xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-600">
