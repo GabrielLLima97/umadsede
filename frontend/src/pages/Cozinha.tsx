@@ -125,9 +125,8 @@ export default function Cozinha(){
     <div className="flex flex-col gap-4 w-full">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-2xl font-black">Cozinha</div>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600 shadow-sm">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600 shadow-sm">
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
             <path d="m10.5 14.5-3 4.5h9l-3-4.5m-6-4a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0Z" />
           </svg>
@@ -137,8 +136,8 @@ export default function Cozinha(){
             placeholder="Buscar por código ou nome"
             className="bg-transparent outline-none placeholder:text-slate-400"
           />
-        </div>
-        <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600 shadow-sm">
+          </div>
+          <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600 shadow-sm">
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
             <path d="M4 7h16" />
             <path d="M6 4v3" />
@@ -158,18 +157,18 @@ export default function Cozinha(){
               </option>
             ))}
           </select>
-        </div>
-        <button
-          className="btn btn-ghost inline-flex items-center gap-2"
-          onClick={() => setMostrarAntecipados((prev) => !prev)}
-        >
+          </div>
+          <button
+            className="btn btn-ghost inline-flex items-center gap-2"
+            onClick={() => setMostrarAntecipados((prev) => !prev)}
+          >
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
             <path d="M5 5h14l1.4 3.5a4 4 0 0 1 .1 2.8l-1.6 4.1a4 4 0 0 1-3.7 2.6H8.8a4 4 0 0 1-3.8-2.7L3.7 11a4 4 0 0 1 .1-2.9L5 5Zm7 9v5" />
             <path d="M9 19h6" />
           </svg>
           {mostrarAntecipados ? "Ocultar antecipados" : "Mostrar antecipados"}
-        </button>
-        <button className="btn btn-ghost inline-flex items-center gap-2" onClick={carregar}>
+          </button>
+          <button className="btn btn-ghost inline-flex items-center gap-2" onClick={carregar}>
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
             <path d="M4 4v6h6" />
             <path d="M20 20v-6h-6" />
@@ -177,7 +176,8 @@ export default function Cozinha(){
             <path d="M19 11a7 7 0 0 0-12-3L5 6" />
           </svg>
           Atualizar
-        </button>
+          </button>
+        </div>
       </div>
       <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <button
