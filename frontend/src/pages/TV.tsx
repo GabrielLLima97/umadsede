@@ -17,6 +17,8 @@ type TvSettings = {
   titleScale: number;
   columnRatio: number;
   cardSpacing: number;
+  productionTitle: string;
+  readyTitle: string;
 };
 
 const DEFAULT_SETTINGS: TvSettings = {
@@ -24,6 +26,8 @@ const DEFAULT_SETTINGS: TvSettings = {
   titleScale: 1,
   columnRatio: 0.35,
   cardSpacing: 16,
+  productionTitle: "Em produção",
+  readyTitle: "Prontos para retirada",
 };
 
 const SETTINGS_STORAGE_KEY = "tv-display-settings-v1";
@@ -239,6 +243,8 @@ export default function TV() {
         titleScale: clamp(parsed.titleScale ?? prev.titleScale, 0.8, 1.5),
         columnRatio: clamp(parsed.columnRatio ?? prev.columnRatio, 0.2, 0.6),
         cardSpacing: clamp(parsed.cardSpacing ?? prev.cardSpacing, 12, 80),
+        productionTitle: typeof parsed.productionTitle === "string" && parsed.productionTitle.trim() ? parsed.productionTitle.trim() : prev.productionTitle,
+        readyTitle: typeof parsed.readyTitle === "string" && parsed.readyTitle.trim() ? parsed.readyTitle.trim() : prev.readyTitle,
       }));
     } catch (error) {
       console.warn("Não foi possível carregar as preferências da TV:", error);
@@ -275,7 +281,7 @@ export default function TV() {
       >
         <div className="flex h-full flex-col" style={{ gap: `${settings.cardSpacing}px` }}>
           <Section
-            title="Em produção"
+            title={settings.productionTitle || "Em produção"}
             subtitle="Pedidos que a cozinha está finalizando"
             tone="warm"
             icon={<ProductionIcon className="h-4 w-4" />}
@@ -299,7 +305,7 @@ export default function TV() {
 
         <div className="flex h-full flex-col" style={{ gap: `${settings.cardSpacing}px` }}>
           <Section
-            title="Prontos para retirada"
+            title={settings.readyTitle || "Prontos para retirada"}
             subtitle="Pedidos liberados para os clientes"
             tone="fresh"
             icon={<ReadyIcon className="h-4 w-4" />}
@@ -381,6 +387,34 @@ function SettingsModal({
         </p>
 
         <div className="mt-6 space-y-6">
+          <div className="space-y-2">
+            <label htmlFor="productionTitle" className="block text-sm font-semibold text-slate-600">
+              Título para pedidos em produção
+            </label>
+            <input
+              id="productionTitle"
+              type="text"
+              value={settings.productionTitle}
+              onChange={(event) => update({ productionTitle: event.target.value })}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+              placeholder="Em produção"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="readyTitle" className="block text-sm font-semibold text-slate-600">
+              Título para pedidos prontos
+            </label>
+            <input
+              id="readyTitle"
+              type="text"
+              value={settings.readyTitle}
+              onChange={(event) => update({ readyTitle: event.target.value })}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+              placeholder="Prontos para retirada"
+            />
+          </div>
+
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm font-semibold text-slate-600">
               <label htmlFor="fontScale">Escala da fonte</label>
