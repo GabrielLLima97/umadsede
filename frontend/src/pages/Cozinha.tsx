@@ -1,320 +1,363 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
-import { OrderCard } from "../components/Kanban";
+import { OrderCard } from "../components/Kanban"; // permanece importado caso use seu card atual
 
-const parseBoolean = (value: unknown) => {
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    return ["1", "true", "t", "sim", "yes"].includes(normalized);
+// =============================
+// Utilitários
+// =============================
+function debounce<T extends (...args: any[]) => void>(fn: T, ms = 250) {
+  let t: number | undefined;
+  return (...args: Parameters<T>) => {
+    if (t) window.clearTimeout(t);
+    t = window.setTimeout(() => fn(...args), ms);
+  };
+}
+
+/** Busca todas as páginas de um endpoint tipo DRF (results/next) ou um array simples */
+async function fetchAllPaginated(path: string, pageSize = 200) {
+  const all: any[] = [];
+  // Garante limit no path
+  const hasQuery = path.includes("?");
+  let url: string | null = `${path}${hasQuery ? "&" : "?"}limit=${pageSize}&offset=0`;
+
+  while (url) {
+    const res = await api.get(url);
+    const data = res.data;
+    const page = Array.isArray(data) ? data : (data.results ?? data ?? []);
+    if (Array.isArray(page)) all.push(...page);
+
+    // DRF: data.next pode ser URL absoluta
+    const next = Array.isArray(data) ? null : (data.next ?? null);
+    url = next ? next : null;
+
+    // Fallback simples, caso back não exponha next, mas retorne sempre pageSize
+    if (!url && !Array.isArray(data) && Array.isArray(page) && page.length === pageSize) {
+      try {
+        const base = new URL(path, window.location.origin);
+        const curOffset = Number(base.searchParams.get("offset") ?? "0");
+        base.searchParams.set("limit", String(pageSize));
+        base.searchParams.set("offset", String(curOffset + pageSize));
+        url = base.pathname + "?" + base.searchParams.toString();
+      } catch {
+        // ignora
+      }
+    }
   }
-  return !!value;
+  return all;
+}
+
+// =============================
+// Tipos mínimos
+// =============================
+export type Pedido = {
+  id: number;
+  status: string;
+  created_at?: string;
+  cliente?: string;
+  cliente_nome?: string;
+  itens?: Array<{ id: number; nome?: string; qtd?: number }>;
+  qtd_itens?: number;
+  antecipado?: boolean;
+  [k: string]: any;
 };
 
-export default function Cozinha(){
-  const [dados,setDados]=useState<any[]>([]);
-  const [itemsMap,setItemsMap]=useState<Record<number,{categoria?:string}>>({});
-  const [now,setNow]=useState<number>(Date.now());
+// Fluxo de status padrão da cozinha, ajuste se necessário para refletir seus valores reais
+const STATUS_FLOW = ["RECEBIDO", "EM_PREPARO", "PRONTO", "ENTREGUE"] as const;
+const COZINHA_COLUMNS = ["RECEBIDO", "EM_PREPARO", "PRONTO"] as const; // colunas visíveis na cozinha
+
+const prevOf: Record<string, string | undefined> = STATUS_FLOW.reduce((acc, s, i) => {
+  acc[s] = i > 0 ? STATUS_FLOW[i - 1] : undefined;
+  return acc;
+}, {} as Record<string, string | undefined>);
+
+const nextOf: Record<string, string | undefined> = STATUS_FLOW.reduce((acc, s, i) => {
+  acc[s] = i < STATUS_FLOW.length - 1 ? STATUS_FLOW[i + 1] : undefined;
+  return acc;
+}, {} as Record<string, string | undefined>);
+
+// =============================
+// Subpágina em Lista
+// =============================
+function ListaCozinha({
+  pedidos,
+  onPrev,
+  onNext,
+  onToggleAntecipado,
+}: {
+  pedidos: Pedido[];
+  onPrev: (p: Pedido) => void;
+  onNext: (p: Pedido) => void;
+  onToggleAntecipado: (p: Pedido, v: boolean) => void;
+}) {
+  return (
+    <div className="overflow-auto rounded border">
+      <table className="min-w-full text-sm">
+        <thead className="bg-gray-100 sticky top-0">
+          <tr>
+            <th className="p-2 text-left">#</th>
+            <th className="p-2 text-left">Cliente</th>
+            <th className="p-2 text-left">Itens</th>
+            <th className="p-2 text-left">Status</th>
+            <th className="p-2 text-left">Antecipado</th>
+            <th className="p-2 text-left">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {pedidos.map((p) => (
+            <tr key={p.id} className="border-t">
+              <td className="p-2">{p.id}</td>
+              <td className="p-2">{p.cliente_nome ?? p.cliente ?? "-"}</td>
+              <td className="p-2">{p.itens?.length ?? p.qtd_itens ?? "-"}</td>
+              <td className="p-2 font-medium">{p.status}</td>
+              <td className="p-2">
+                <label className="inline-flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!p.antecipado}
+                    onChange={(e) => onToggleAntecipado(p, e.target.checked)}
+                  />
+                  <span>{p.antecipado ? "Sim" : "Não"}</span>
+                </label>
+              </td>
+              <td className="p-2">
+                <div className="flex gap-2">
+                  {prevOf[p.status] && (
+                    <button className="px-2 py-1 border rounded" onClick={() => onPrev(p)}>
+                      ← {prevOf[p.status]}
+                    </button>
+                  )}
+                  {nextOf[p.status] && (
+                    <button className="px-2 py-1 border rounded" onClick={() => onNext(p)}>
+                      {nextOf[p.status]} →
+                    </button>
+                  )}
+                </div>
+              </td>
+            </tr>
+          ))}
+          {pedidos.length === 0 && (
+            <tr>
+              <td className="p-4 text-center text-gray-500" colSpan={6}>
+                Sem pedidos nesta fila
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// =============================
+// Componente principal
+// =============================
+export default function Cozinha() {
+  const [dados, setDados] = useState<Pedido[]>([]);
+  const [now, setNow] = useState<number>(Date.now());
   const [mostrarAntecipados, setMostrarAntecipados] = useState(false);
   const [mostrarResumoItens, setMostrarResumoItens] = useState(false);
+  const [viewMode, setViewMode] = useState<"kanban" | "lista">("kanban");
 
-  const carregar = async ()=>{
-    const [orders, items] = await Promise.all([
-      api.get("/orders/"),
-      api.get("/items/?all=1"),
-    ]);
-    const arr = orders.data?.results || orders.data || [];
-    setDados(Array.isArray(arr) ? arr : []);
-    const map:Record<number,{categoria?:string}> = {};
-    const itemArr = items.data?.results || items.data || [];
-    (Array.isArray(itemArr)? itemArr : []).forEach((it:any)=>{ map[it.id] = {categoria: it.categoria}; });
-    setItemsMap(map);
-  }
-  useEffect(()=>{
-    carregar();
-    // websocket realtime
+  const PAGE_SIZE = 200; // pode ajustar
+  const COZINHA_STATUSES = COZINHA_COLUMNS as unknown as string[];
+
+  // =============================
+  // Ações
+  // =============================
+  const updateStatus = async (id: number, status: string | undefined) => {
+    if (!status) return;
+    try {
+      await api.patch(`/orders/${id}/`, { status });
+      setDados((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)));
+    } catch (e) {
+      console.error("Falha ao atualizar status", e);
+    }
+  };
+
+  const toggleAntecipado = async (id: number, v: boolean) => {
+    try {
+      await api.patch(`/orders/${id}/`, { antecipado: v });
+      setDados((prev) => prev.map((p) => (p.id === id ? { ...p, antecipado: v } : p)));
+    } catch (e) {
+      console.error("Falha ao alternar antecipado", e);
+    }
+  };
+
+  const carregar = async () => {
+    // Ordenação estável por created_at asc, ajuste se necessário
+    const ordersPath = `/orders/?status__in=${COZINHA_STATUSES.join(",")}&ordering=created_at`;
+    const allOrders = await fetchAllPaginated(ordersPath, PAGE_SIZE);
+
+    setDados((prev) => {
+      const mapPrev = new Map(prev.map((p) => [p.id, p]));
+      for (const o of allOrders) mapPrev.set(o.id, { ...(mapPrev.get(o.id) ?? {}), ...o });
+      // somente os que interessam à cozinha e ordenação estável
+      const merged = Array.from(mapPrev.values())
+        .filter((p) => COZINHA_STATUSES.includes(p.status))
+        .sort((a, b) => {
+          const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return ta - tb;
+        });
+      return merged;
+    });
+  };
+
+  // =============================
+  // WebSocket + heartbeat + primeira carga
+  // =============================
+  const wsRef = useRef<WebSocket | null>(null);
+  useEffect(() => {
     const host = window.location.hostname + (window.location.port === "5173" ? ":8000" : "");
     const wsProto = window.location.protocol === "https:" ? "wss" : "ws";
-    const ws = new WebSocket(`${wsProto}://${host}/ws/orders`);
-    ws.onmessage = ()=> carregar();
-    ws.onerror = ()=>{};
-    const t = setInterval(()=> setNow(Date.now()), 5000);
-    return ()=> { ws.close(); clearInterval(t); }
-  },[]);
+    const wsUrl = `${wsProto}://${host}/ws/orders`;
 
-  const update = (id:number, status:string)=> api.patch(`/orders/${id}/status/`,{status}).then(carregar);
-  const toggleAntecipado = (id:number, value:boolean) =>
-    api.patch(`/orders/${id}/antecipado/`, { antecipado: value }).then(carregar);
-
-  const [filtroTexto, setFiltroTexto] = useState("");
-  const [categoriaFiltro, setCategoriaFiltro] = useState("");
-  const categoriaDoItem = (item: any) => itemsMap?.[item.item]?.categoria || item.categoria || "Outros";
-  const matchFiltro = (pedido: any) => {
-    if (!filtroTexto.trim()) return true;
-    const q = filtroTexto.trim().toLowerCase();
-    const idMatch = String(pedido.id).includes(q);
-    const nomeMatch = (pedido.cliente_nome || "").toLowerCase().includes(q);
-    return idMatch || nomeMatch;
-  };
-  const matchCategoria = (pedido: any) => {
-    if (!categoriaFiltro) return true;
-    return (pedido.itens || []).some((item: any) => categoriaDoItem(item) === categoriaFiltro);
-  };
-
-  const fonte = dados.filter((pedido) => {
-    if (!mostrarAntecipados && parseBoolean(pedido.antecipado)) return false;
-    if (!matchFiltro(pedido)) return false;
-    return matchCategoria(pedido);
-  });
-
-  const categoriasDisponiveis = useMemo(() => {
-    const set = new Set<string>();
-    dados.forEach((pedido: any) => {
-      (pedido.itens || []).forEach((item: any) => {
-        const categoria = categoriaDoItem(item);
-        set.add(categoria);
-      });
-    });
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [dados, itemsMap]);
-
-  useEffect(() => {
-    if (categoriaFiltro && !categoriasDisponiveis.includes(categoriaFiltro)) {
-      setCategoriaFiltro("");
+    try {
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+      const safeReload = debounce(carregar, 300);
+      ws.onmessage = () => safeReload();
+      ws.onerror = (e) => console.warn("WS erro cozinha:", e);
+      ws.onclose = () => {};
+    } catch (e) {
+      console.warn("Falha WS cozinha", e);
     }
-  }, [categoriaFiltro, categoriasDisponiveis]);
 
-  type StatusResumo = "a preparar" | "em produção";
-  const itensParaProduzir = useMemo(() => {
-    const map = new Map<string, { nome: string; aPreparar: number; emProducao: number }>();
+    const t = window.setInterval(() => setNow(Date.now()), 5000);
+    carregar(); // primeira carga completa
 
-    fonte.forEach((pedido: any) => {
-      const status = pedido.status as StatusResumo;
-      if (status !== "a preparar" && status !== "em produção") return;
-      (pedido.itens || []).forEach((item: any) => {
-        const nome = item.nome || `Item ${item.item}`;
-        const quantidade = Number(item.qtd || 0);
-        if (!Number.isFinite(quantidade)) return;
-        const categoria = categoriaDoItem(item);
-        if (categoriaFiltro && categoria !== categoriaFiltro) return;
-        const atual = map.get(nome) || { nome, aPreparar: 0, emProducao: 0 };
-        if (status === "a preparar") atual.aPreparar += quantidade;
-        if (status === "em produção") atual.emProducao += quantidade;
-        map.set(nome, atual);
-      });
-    });
+    return () => {
+      if (wsRef.current) try { wsRef.current.close(); } catch {}
+      window.clearInterval(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    return Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome));
-  }, [fonte, categoriaFiltro]);
+  // =============================
+  // Derivados e filtros
+  // =============================
+  const pedidosFiltrados = useMemo(() => {
+    let arr = dados;
+    if (mostrarAntecipados) arr = arr.filter((p) => !!p.antecipado);
+    return arr;
+  }, [dados, mostrarAntecipados]);
 
-  const totalItensAPreparar = itensParaProduzir.reduce((acc, item) => acc + item.aPreparar, 0);
-  const totalItensEmProducao = itensParaProduzir.reduce((acc, item) => acc + item.emProducao, 0);
-  const totalItensParaProduzir = totalItensAPreparar + totalItensEmProducao;
+  const porColuna = useMemo(() => {
+    const groups: Record<string, Pedido[]> = {};
+    for (const col of COZINHA_COLUMNS) groups[col] = [];
+    for (const p of pedidosFiltrados) if (groups[p.status]) groups[p.status].push(p);
+    return groups;
+  }, [pedidosFiltrados]);
 
-  const col = (s:string)=> fonte.filter(p=>p.status===s);
-  const sortByCreated = (arr:any[]) =>
-    [...arr].sort((a,b)=> new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-  const nextOf:any = {"pago":"a preparar","a preparar":"em produção","em produção":"pronto","pronto":"finalizado","finalizado":"finalizado"};
-  const prevOf:any = {"finalizado":"pronto","pronto":"em produção","em produção":"a preparar","a preparar":"pago","pago":"pago"};
-
-  const formatItensLabel = (valor: number) => (valor === 1 ? "item" : "itens");
-  const resumoTexto = totalItensParaProduzir
-    ? `${totalItensParaProduzir} ${formatItensLabel(totalItensParaProduzir)} para produzir`
-    : "Nenhum item pendente";
+  // =============================
+  // UI auxiliar
+  // =============================
+  function SmallCard({ p }: { p: Pedido }) {
+    return (
+      <div className="rounded-xl border p-3 bg-white shadow-sm flex flex-col gap-2">
+        <div className="flex items-center justify-between text-sm">
+          <span className="font-semibold">#{p.id}</span>
+          <span className="opacity-60">{p.cliente_nome ?? p.cliente ?? "Cliente"}</span>
+        </div>
+        <div className="text-xs opacity-70">{p.itens?.length ?? p.qtd_itens ?? 0} itens</div>
+        <div className="flex items-center gap-2">
+          {prevOf[p.status] && (
+            <button
+              className="px-2 py-1 border rounded text-xs"
+              onClick={() => updateStatus(p.id, prevOf[p.status])}
+            >
+              ← {prevOf[p.status]}
+            </button>
+          )}
+          {nextOf[p.status] && (
+            <button
+              className="px-2 py-1 border rounded text-xs"
+              onClick={() => updateStatus(p.id, nextOf[p.status])}
+            >
+              {nextOf[p.status]} →
+            </button>
+          )}
+          <label className="ml-auto inline-flex items-center gap-1 text-xs cursor-pointer">
+            <input
+              type="checkbox"
+              checked={!!p.antecipado}
+              onChange={(e) => toggleAntecipado(p.id, e.target.checked)}
+            />
+            Antecipado
+          </label>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-4 w-full">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-2xl font-black">Cozinha</div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600 shadow-sm">
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
-            <path d="m10.5 14.5-3 4.5h9l-3-4.5m-6-4a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0Z" />
-          </svg>
-          <input
-            value={filtroTexto}
-            onChange={(event) => setFiltroTexto(event.target.value)}
-            placeholder="Buscar por código ou nome"
-            className="bg-transparent outline-none placeholder:text-slate-400"
-          />
-          </div>
-          <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600 shadow-sm">
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
-            <path d="M4 7h16" />
-            <path d="M6 4v3" />
-            <path d="M12 4v3" />
-            <path d="M18 4v3" />
-            <path d="M6 11h12l1.5 6.5a2 2 0 0 1-2 2.5H6a2 2 0 0 1-2-2.5L6 11Z" />
-          </svg>
-          <select
-            value={categoriaFiltro}
-            onChange={(event) => setCategoriaFiltro(event.target.value)}
-            className="bg-transparent text-sm text-slate-600 outline-none"
-          >
-            <option value="">Todas as categorias</option>
-            {categoriasDisponiveis.map((categoria) => (
-              <option key={categoria} value={categoria}>
-                {categoria}
-              </option>
-            ))}
-          </select>
-          </div>
-          <button
-            className="btn btn-ghost inline-flex items-center gap-2"
-            onClick={() => setMostrarAntecipados((prev) => !prev)}
-          >
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
-            <path d="M5 5h14l1.4 3.5a4 4 0 0 1 .1 2.8l-1.6 4.1a4 4 0 0 1-3.7 2.6H8.8a4 4 0 0 1-3.8-2.7L3.7 11a4 4 0 0 1 .1-2.9L5 5Zm7 9v5" />
-            <path d="M9 19h6" />
-          </svg>
-          {mostrarAntecipados ? "Ocultar antecipados" : "Mostrar antecipados"}
-          </button>
-          <button className="btn btn-ghost inline-flex items-center gap-2" onClick={carregar}>
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
-            <path d="M4 4v6h6" />
-            <path d="M20 20v-6h-6" />
-            <path d="M5 13a7 7 0 0 0 12 3l2 2" />
-            <path d="M19 11a7 7 0 0 0-12-3L5 6" />
-          </svg>
-          Atualizar
-          </button>
-        </div>
-      </div>
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+    <div className="p-3 flex flex-col gap-3">
+      {/* Barra de controles */}
+      <div className="flex flex-wrap items-center gap-2">
         <button
-          type="button"
-          onClick={() => setMostrarResumoItens((prev) => !prev)}
-          className="flex w-full flex-wrap items-center justify-between gap-3 text-left"
+          className={`px-3 py-1 rounded ${viewMode === "kanban" ? "bg-black text-white" : "bg-gray-200"}`}
+          onClick={() => setViewMode("kanban")}
         >
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600">
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.8}>
-                <path d="M20 18v-5a1 1 0 0 0-.9-1l-7.1-1.4a1 1 0 0 1-.8-1V6a1 1 0 0 0-.6-.9L6 3" />
-                <path d="M4 21v-9a1 1 0 0 1 .9-1l7.2-1.4a1 1 0 0 0 .8-1V6" />
-              </svg>
-            </div>
-            <div>
-              <div className="text-base font-black text-slate-700">Itens a produzir</div>
-              <div className="text-xs font-medium text-slate-500">{resumoTexto}</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 text-xs font-semibold">
-            {totalItensAPreparar > 0 && (
-              <span className="rounded-full bg-sky-100 px-2 py-0.5 text-sky-700">
-                A preparar x{totalItensAPreparar}
-              </span>
-            )}
-            {totalItensEmProducao > 0 && (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700">
-                Em produção x{totalItensEmProducao}
-              </span>
-            )}
-            <span className="rounded-full border border-slate-200 bg-slate-50 p-1 text-slate-500">
-              {mostrarResumoItens ? (
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
-                  <path d="m6 15 6-6 6 6" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              )}
-            </span>
-          </div>
+          Kanban
         </button>
-        {mostrarResumoItens && (
-          itensParaProduzir.length ? (
-            <ul className="mt-3 space-y-2 text-sm text-slate-700">
-              {itensParaProduzir.map((item) => (
-                <li
-                  key={item.nome}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
-                >
-                  <span className="font-medium">{item.nome}</span>
-                  <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
-                    {item.aPreparar > 0 && (
-                      <span className="rounded-full bg-sky-100 px-2 py-0.5 text-sky-700">
-                        A preparar x{item.aPreparar}
-                      </span>
-                    )}
-                    {item.emProducao > 0 && (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700">
-                        Em produção x{item.emProducao}
-                      </span>
-                    )}
-                    <span className="rounded-full bg-white px-2 py-0.5 text-slate-600">
-                      Total x{item.aPreparar + item.emProducao}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="mt-3 text-sm text-slate-500">Nenhum item pendente para produzir.</div>
-          )
-        )}
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div>
-          <div className="rounded-2xl border bg-sky-50 text-sky-700 border-sky-200 px-4 py-3 flex items-center justify-between mb-2">
-            <div className="font-black">Pago / A preparar</div>
-            <span className="px-2 py-1 rounded-full text-xs font-black bg-white/70">{String(col("pago").length + col("a preparar").length)}</span>
-          </div>
-          <div className="flex flex-col gap-3">
-            {sortByCreated(col("pago").concat(col("a preparar"))).map(p=>(
-              <OrderCard
-                key={p.id}
-                p={p}
-                itemsMap={itemsMap}
-                now={now}
-                onPrev={()=>update(p.id, prevOf[p.status])}
-                // Avança diretamente de "pago" ou "a preparar" para "em produção" com um clique
-                onNext={()=>update(p.id, "em produção")}
-                onToggleAntecipado={(value)=>toggleAntecipado(p.id, value)}
-              />
-            ))}
-          </div>
-        </div>
+        <button
+          className={`px-3 py-1 rounded ${viewMode === "lista" ? "bg-black text-white" : "bg-gray-200"}`}
+          onClick={() => setViewMode("lista")}
+        >
+          Lista
+        </button>
 
-        <div>
-          <div className="rounded-2xl border bg-amber-50 text-amber-700 border-amber-200 px-4 py-3 flex items-center justify-between mb-2">
-            <div className="font-black">Em produção</div>
-            <span className="px-2 py-1 rounded-full text-xs font-black bg-white/70">{String(col("em produção").length)}</span>
-          </div>
-          <div className="flex flex-col gap-3">
-            {sortByCreated(col("em produção")).map(p=>(
-              <OrderCard
-                key={p.id}
-                p={p}
-                itemsMap={itemsMap}
-                now={now}
-                onPrev={()=>update(p.id, prevOf[p.status])}
-                onNext={()=>update(p.id, nextOf[p.status])}
-                onToggleAntecipado={(value)=>toggleAntecipado(p.id, value)}
-              />
-            ))}
-          </div>
-        </div>
+        <label className="ml-2 inline-flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={mostrarAntecipados}
+            onChange={(e) => setMostrarAntecipados(e.target.checked)}
+          />
+          <span className="text-sm">Somente antecipados</span>
+        </label>
 
-        <div>
-          <div className="rounded-2xl border bg-emerald-50 text-emerald-700 border-emerald-200 px-4 py-3 flex items-center justify-between mb-2">
-            <div className="font-black">Pronto</div>
-            <span className="px-2 py-1 rounded-full text-xs font-black bg-white/70">{String(col("pronto").length)}</span>
-          </div>
-          <div className="flex flex-col gap-3">
-            {sortByCreated(col("pronto")).map(p=>(
-              <OrderCard
-                key={p.id}
-                p={p}
-                itemsMap={itemsMap}
-                now={now}
-                onPrev={()=>update(p.id, prevOf[p.status])}
-                onNext={()=>update(p.id, nextOf[p.status])}
-                onToggleAntecipado={(value)=>toggleAntecipado(p.id, value)}
-              />
-            ))}
-          </div>
-        </div>
+        <label className="inline-flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={mostrarResumoItens}
+            onChange={(e) => setMostrarResumoItens(e.target.checked)}
+          />
+          <span className="text-sm">Resumo de itens</span>
+        </label>
+
+        <div className="ml-auto text-xs opacity-60">{new Date(now).toLocaleTimeString()}</div>
       </div>
+
+      {/* Conteúdo */}
+      {viewMode === "lista" ? (
+        <ListaCozinha
+          pedidos={pedidosFiltrados}
+          onPrev={(p) => updateStatus(p.id, prevOf[p.status])}
+          onNext={(p) => updateStatus(p.id, nextOf[p.status])}
+          onToggleAntecipado={(p, v) => toggleAntecipado(p.id, v)}
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {COZINHA_COLUMNS.map((col) => (
+            <div key={col} className="rounded-xl border bg-gray-50">
+              <div className="p-3 border-b flex items-center justify-between">
+                <h3 className="font-semibold">{col}</h3>
+                <span className="text-xs opacity-60">{porColuna[col].length}</span>
+              </div>
+              <div className="p-3 flex flex-col gap-2 min-h-[200px]">
+                {porColuna[col].map((p) => (
+                  // Preferencialmente use seu OrderCard se já esperar essas props
+                  // <OrderCard key={p.id} order={p} onPrev={() => updateStatus(p.id, prevOf[p.status])} onNext={() => updateStatus(p.id, nextOf[p.status])} onToggleAntecipado={(v:boolean)=>toggleAntecipado(p.id,v)} />
+                  <SmallCard key={p.id} p={p} />
+                ))}
+                {porColuna[col].length === 0 && (
+                  <div className="text-xs text-center opacity-50 py-6">Sem pedidos</div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
