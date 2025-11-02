@@ -209,7 +209,7 @@ export default function TV() {
 
   useEffect(() => {
     const carregar = () =>
-      api.get("/orders/").then((r) => {
+      api.get("/orders/?limit=500&ordering=created_at").then((r) => {
         const data = (r.data?.results || r.data || []) as Order[];
         const arr = Array.isArray(data) ? data : [];
         const byCreated = (a: Order, b: Order) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
